@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { getStorage, setStorage, getUsageLast7Days, blockDomain, unblockDomain, setLimit as storageSetLimit, getAll } from '../utils/storage'
+import { getStorage, setStorage, getUsageLast7Days, blockDomain, unblockDomain, setLimit as storageSetLimit, getAll, ensureDomainCategory, exportAllToCSV } from '../utils/storage'
+import { categorizeDomain, defaultLimitForCategory } from '../utils/categories'
 import '../styles/tailwind.css'
 import { motion } from 'framer-motion'
 import { Cog6ToothIcon, ShieldExclamationIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline'
@@ -43,6 +44,10 @@ export default function Popup() {
                 setFav(getFaviconForDomain(d))
                 const t = await getUsageLast7Days(d)
                 setTrend(t.map(x => Math.round(x / 60)))
+                // ensure category and suggested default limit
+                const cat = categorizeDomain(d)
+                const suggested = defaultLimitForCategory(cat)
+                await ensureDomainCategory(d, cat, suggested)
             }
             const all = await getAll()
             const th = (all.theme || 'light')
@@ -82,6 +87,24 @@ export default function Popup() {
         if (!limit) return 0
         return Math.round((usage / (limit * 60)) * 100)
     }
+
+    async function exportCSV() {
+        const csv = await exportAllToCSV()
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'sitefuse_usage.csv'
+        a.click()
+        URL.revokeObjectURL(url)
+    }
+
+    function snooze(minutes = 5) {
+        chrome.runtime.sendMessage({ action: 'snooze', domain, minutes }, (res) => {
+            // optimistic UI update
+        })
+    }
+
+    const suggestion = (limit && limit > 0 && usage > 0 && usage / (limit * 60) > 0.75) || (!limit && usage > 60 * 30)
 
     return (
         <div className="min-w-[320px] p-4 font-sans">
@@ -145,6 +168,11 @@ export default function Popup() {
                         {trend.map((v, i) => (
                             <motion.div key={i} initial={{ height: 2 }} animate={{ height: `${Math.max(4, (v / (Math.max(...trend) || 1)) * 80)}%` }} className="w-full bg-indigo-200 dark:bg-indigo-800 rounded-t" style={{ height: `${Math.max(4, (v / (Math.max(...trend) || 1)) * 100)}%` }} title={`${v}m`} />
                         ))}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                        <button className="px-3 py-2 rounded border" onClick={exportCSV}>Export CSV</button>
+                        <button className="px-3 py-2 rounded border" onClick={() => snooze(5)}>Snooze 5m</button>
+                        {suggestion ? <button className="px-3 py-2 rounded bg-yellow-500 text-white" onClick={() => applyLimit(Math.max(10, Math.floor(usage / 60)))}>Suggest Limit</button> : null}
                     </div>
                 </div>
             </motion.div>

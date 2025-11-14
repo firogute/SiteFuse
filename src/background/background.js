@@ -78,13 +78,19 @@ async function incrementDomainUsage(domain, seconds = 60) {
         const sent = meta[key];
         if (pct >= thr && !sent) {
           try {
-            chrome.notifications.create(`sitefuse_${thr}_${domain}`, {
-              type: 'basic',
-              iconUrl: '/icon128.png',
-              title: `SiteFuse: ${Math.round(pct)}% of limit reached`,
-              message: `${domain} has used ${Math.round(pct)}% of its time limit.`,
-              buttons: [{ title: 'Snooze 5m' }],
-            }, () => {});
+            chrome.notifications.create(
+              `sitefuse_${thr}_${domain}`,
+              {
+                type: "basic",
+                iconUrl: "/icon128.png",
+                title: `SiteFuse: ${Math.round(pct)}% of limit reached`,
+                message: `${domain} has used ${Math.round(
+                  pct
+                )}% of its time limit.`,
+                buttons: [{ title: "Snooze 5m" }],
+              },
+              () => {}
+            );
           } catch (e) {}
           const obj = {};
           obj[key] = true;
@@ -224,12 +230,12 @@ if (chrome.notifications) {
   chrome.notifications.onButtonClicked.addListener(async (notifId, btnIdx) => {
     try {
       // notifId format: sitefuse_<threshold>_<domain>
-      if (!notifId.startsWith('sitefuse_')) return;
-      const parts = notifId.split('_');
-      const domain = parts.slice(2).join('_');
+      if (!notifId.startsWith("sitefuse_")) return;
+      const parts = notifId.split("_");
+      const domain = parts.slice(2).join("_");
       // Snooze for 5 minutes
       const snoozeMinutes = 5;
-      const data = await getStorage(['blocked', 'snoozes']);
+      const data = await getStorage(["blocked", "snoozes"]);
       const snoozes = data.snoozes || {};
       snoozes[domain] = Date.now() + snoozeMinutes * 60 * 1000;
       await setStorage({ snoozes });
@@ -238,7 +244,12 @@ if (chrome.notifications) {
         for (const t of tabs) {
           try {
             const d = domainFromUrl(t.url);
-            if (d === domain) chrome.tabs.sendMessage(t.id, { action: 'snoozed', until: snoozes[domain] }, () => {});
+            if (d === domain)
+              chrome.tabs.sendMessage(
+                t.id,
+                { action: "snoozed", until: snoozes[domain] },
+                () => {}
+              );
           } catch (e) {}
         }
       });
@@ -249,10 +260,10 @@ if (chrome.notifications) {
 // Add message handlers for export and snooze via messages
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || !msg.action) return;
-  if (msg.action === 'export-csv') {
+  if (msg.action === "export-csv") {
     (async () => {
       try {
-        const { exportAllToCSV } = await import('../utils/storage.js');
+        const { exportAllToCSV } = await import("../utils/storage.js");
         const csv = await exportAllToCSV();
         sendResponse({ ok: true, csv });
       } catch (e) {
@@ -261,11 +272,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     })();
     return true;
   }
-  if (msg.action === 'snooze') {
+  if (msg.action === "snooze") {
     (async () => {
       const domain = msg.domain;
       const mins = msg.minutes || 5;
-      const data = await getStorage(['snoozes']);
+      const data = await getStorage(["snoozes"]);
       const snoozes = data.snoozes || {};
       snoozes[domain] = Date.now() + mins * 60 * 1000;
       await setStorage({ snoozes });

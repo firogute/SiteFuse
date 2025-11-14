@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { getAll, setLimit, removeLimit, blockDomain, unblockDomain, getUsageLast7Days } from '../utils/storage'
+import { getAll, setLimit, removeLimit, blockDomain, unblockDomain, getUsageLast7Days, getStorage, setStorage } from '../utils/storage'
+import { knownCategories, defaultLimitForCategory } from '../utils/categories'
 import '../styles/tailwind.css'
 import { motion } from 'framer-motion'
 import { TrashIcon, BellAlertIcon } from '@heroicons/react/24/outline'
@@ -9,6 +10,36 @@ function formatUsage(s) {
     const mm = Math.floor(s / 60)
     const ss = s % 60
     return `${mm}m ${ss}s`
+}
+
+function CategoryDefault({ category }) {
+    const [val, setVal] = useState('')
+    useEffect(() => {
+        (async () => {
+            const s = await getStorage(['categoryDefaults'])
+            const defs = s.categoryDefaults || {}
+            setVal(defs[category] || '')
+        })()
+    }, [category])
+
+    async function save() {
+        const mins = parseInt(val, 10)
+        if (isNaN(mins)) return
+        const s = await getStorage(['categoryDefaults'])
+        const defs = s.categoryDefaults || {}
+        defs[category] = mins
+        await setStorage({ categoryDefaults: defs })
+    }
+
+    return (
+        <div className="p-2 border rounded">
+            <div className="text-xs text-gray-500">{category}</div>
+            <div className="mt-2 flex gap-2">
+                <input className="flex-1 p-1 rounded border text-sm" value={val} onChange={(e) => setVal(e.target.value)} />
+                <button className="px-2 py-1 rounded bg-indigo-600 text-white text-sm" onClick={save}>Save</button>
+            </div>
+        </div>
+    )
 }
 
 export default function Options() {
@@ -22,6 +53,13 @@ export default function Options() {
         (async () => {
             const all = await getAll()
             setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
+            // ensure category defaults exist
+            const s = await getStorage(['categoryDefaults'])
+            if (!s.categoryDefaults) {
+                const defs = {}
+                for (const c of knownCategories()) defs[c] = defaultLimitForCategory(c)
+                await setStorage({ categoryDefaults: defs })
+            }
         })()
     }, [])
 
@@ -75,6 +113,15 @@ export default function Options() {
                     <div className="flex items-center gap-3">
                         <input placeholder="Search domains" className="p-2 rounded border" value={query} onChange={(e) => setQuery(e.target.value)} />
                         <button className="px-3 py-2 rounded border text-sm" onClick={() => { setSelected({}); setQuery(''); }}>Reset</button>
+                    </div>
+                </div>
+
+                <div className="mb-6">
+                    <h3 className="text-sm font-semibold mb-2">Category Defaults</h3>
+                    <div className="grid grid-cols-3 gap-3">
+                        {knownCategories().map((c) => (
+                            <CategoryDefault key={c} category={c} />
+                        ))}
                     </div>
                 </div>
 

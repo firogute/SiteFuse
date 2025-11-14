@@ -102,7 +102,8 @@ export async function recordDailyResult(dateStr, domain, underLimit) {
   daily[dateStr][domain] = !!underLimit;
   // simple streak calc: if all tracked domains under limit, increment
   const allDomains = Object.keys(limits || {});
-  const todayResults = allDomains.length > 0 && allDomains.every((d) => daily[dateStr][d]);
+  const todayResults =
+    allDomains.length > 0 && allDomains.every((d) => daily[dateStr][d]);
   if (todayResults) {
     streaks.current = (streaks.current || 0) + 1;
     streaks.best = Math.max(streaks.best || 0, streaks.current);
@@ -122,9 +123,16 @@ export async function exportAllToCSV() {
   ]);
   const rows = [["domain", "total_seconds", "limit_mins", "category"]];
   for (const d of domains) {
-    rows.push([d, (all.usage && all.usage[d]) || 0, (all.limits && all.limits[d]) || "", (all.categories && all.categories[d]) || ""]);
+    rows.push([
+      d,
+      (all.usage && all.usage[d]) || 0,
+      (all.limits && all.limits[d]) || "",
+      (all.categories && all.categories[d]) || "",
+    ]);
   }
   return rows
-    .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .map((r) =>
+      r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+    )
     .join("\n");
 }
