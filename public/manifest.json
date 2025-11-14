@@ -25,8 +25,18 @@
   ],
   "permissions": ["storage", "tabs", "alarms", "activeTab", "notifications"],
   "host_permissions": ["<all_urls>"],
-  "web_accessible_resources": [{
-    "resources": ["blocked.html", "icon16.png", "icon32.png", "icon48.png", "icon128.png", "icon256.png", "icon512.png"],
-    "matches": ["<all_urls>"]
-  }]
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "blocked.html",
+        "icon16.png",
+        "icon32.png",
+        "icon48.png",
+        "icon128.png",
+        "icon256.png",
+        "icon512.png"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

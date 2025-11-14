@@ -1,36 +1,12 @@
 <!DOCTYPE html>
-  <body>
-    <div id="root"></div>
-  </body>
-        background: #f8f8f8;
-      }
-      .card {
-        text-align: center;
-        background: white;
-        padding: 32px;
-        border-radius: 8px;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-      }
-      a {
-        color: #007bff;
-      }
-    </style>
-    <script type="module" crossorigin src="/assets/blocked-DmsG4B9T.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/client-Bonc8G4M.js">
-    <link rel="stylesheet" crossorigin href="/assets/client-RUqbwgNV.css">
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Site Blocked</title>
   </head>
   <body>
-    <div class="card">
-      <h1>Site Blocked</h1>
-      <p>This site has exceeded its allowed usage time.</p>
-      <p><a id="back" href="#">Go back to extension</a></p>
-    </div>
-
-    <script>
-      document.getElementById("back").addEventListener("click", () => {
-        window.location.href =
-          "chrome-extension://" + location.host + "/popup.html";
-      });
-    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/blocked/main.jsx"></script>
   </body>
 </html>

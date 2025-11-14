@@ -77,12 +77,18 @@ async function incrementDomainUsage(domain, seconds = 60) {
       const sent = meta[notifKey];
       if (pct >= 80 && !sent) {
         try {
-          chrome.notifications.create(`sitefuse_warn_${domain}`, {
-            type: 'basic',
-            iconUrl: '/icon128.png',
-            title: 'SiteFuse: approaching limit',
-            message: `${domain} has used ${Math.round(pct)}% of its time limit.`
-          }, () => {});
+          chrome.notifications.create(
+            `sitefuse_warn_${domain}`,
+            {
+              type: "basic",
+              iconUrl: "/icon128.png",
+              title: "SiteFuse: approaching limit",
+              message: `${domain} has used ${Math.round(
+                pct
+              )}% of its time limit.`,
+            },
+            () => {}
+          );
         } catch (e) {}
         const obj = {};
         obj[notifKey] = true;

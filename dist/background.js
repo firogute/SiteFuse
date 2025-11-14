@@ -36,6 +36,19 @@ async function incrementDomainUsage(domain, seconds = 60) {
 
   usage[domain] = (usage[domain] || 0) + seconds;
 
+  // maintain a simple usage history for trends
+  try {
+    const histData = await getStorage(["usageHistory"]);
+    const usageHistory = histData.usageHistory || {};
+    if (!usageHistory[domain]) usageHistory[domain] = [];
+    usageHistory[domain].push({ t: Date.now(), s: seconds });
+    const cutoff = Date.now() - 1000 * 60 * 60 * 24 * 30; // 30 days
+    usageHistory[domain] = usageHistory[domain].filter((e) => e.t >= cutoff);
+    await setStorage({ usageHistory });
+  } catch (e) {
+    // ignore history errors
+  }
+
   const limitMins = limits[domain];
   if (limitMins && usage[domain] >= limitMins * 60) {
     blocked[domain] = true;
@@ -54,6 +67,35 @@ async function incrementDomainUsage(domain, seconds = 60) {
   }
 
   await setStorage({ usage });
+  // Send a notification when hitting 80% of limit
+  try {
+    const limitMins = limits[domain];
+    if (limitMins) {
+      const pct = (usage[domain] / (limitMins * 60)) * 100;
+      const notifKey = `notif_${domain}`;
+      const meta = await getStorage([notifKey]);
+      const sent = meta[notifKey];
+      if (pct >= 80 && !sent) {
+        try {
+          chrome.notifications.create(
+            `sitefuse_warn_${domain}`,
+            {
+              type: "basic",
+              iconUrl: "/icon128.png",
+              title: "SiteFuse: approaching limit",
+              message: `${domain} has used ${Math.round(
+                pct
+              )}% of its time limit.`,
+            },
+            () => {}
+          );
+        } catch (e) {}
+        const obj = {};
+        obj[notifKey] = true;
+        await setStorage(obj);
+      }
+    }
+  } catch (e) {}
 }
 
 async function updateActiveTabDomain() {
@@ -74,35 +116,35 @@ async function updateActiveTabDomain() {
 
 chrome.runtime.onInstalled.addListener(() => {
   (async () => {
-    const data = await getStorage(['debug'])
-    const debug = !!data.debug
+    const data = await getStorage(["debug"]);
+    const debug = !!data.debug;
     // initialize storage keys
-    await setStorage({ usage: {}, limits: {}, blocked: {}, debug })
-    setupAlarm(debug)
-  })()
+    await setStorage({ usage: {}, limits: {}, blocked: {}, debug });
+    setupAlarm(debug);
+  })();
 });
 
 function setupAlarm(debug) {
   // clear existing
-  chrome.alarms.clear('sitefuse_tick', () => {
-    const minutes = debug ? 5 / 60 : 1 // 5 seconds if debug (may be clamped by browser)
+  chrome.alarms.clear("sitefuse_tick", () => {
+    const minutes = debug ? 5 / 60 : 1; // 5 seconds if debug (may be clamped by browser)
     try {
-      chrome.alarms.create('sitefuse_tick', { periodInMinutes: minutes })
+      chrome.alarms.create("sitefuse_tick", { periodInMinutes: minutes });
     } catch (e) {
       // fallback to 1 minute if invalid
-      chrome.alarms.create('sitefuse_tick', { periodInMinutes: 1 })
+      chrome.alarms.create("sitefuse_tick", { periodInMinutes: 1 });
     }
-  })
+  });
 }
 
 // Watch debug setting changes to reconfigure alarm
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local') return
+  if (area !== "local") return;
   if (changes.debug) {
-    const debug = !!changes.debug.newValue
-    setupAlarm(debug)
+    const debug = !!changes.debug.newValue;
+    setupAlarm(debug);
   }
-})
+});
 
 chrome.tabs.onActivated.addListener(updateActiveTabDomain);
 chrome.windows.onFocusChanged.addListener((winId) => {
@@ -120,9 +162,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== "sitefuse_tick") return;
   const domain = await getCurrentDomain();
   if (!domain) return;
-  const d = await getStorage(['debug'])
-  const debug = !!d.debug
-  const seconds = debug ? 5 : 60
+  const d = await getStorage(["debug"]);
+  const debug = !!d.debug;
+  const seconds = debug ? 5 : 60;
   await incrementDomainUsage(domain, seconds);
 });
 

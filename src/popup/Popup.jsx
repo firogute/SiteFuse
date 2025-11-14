@@ -26,7 +26,7 @@ export default function Popup() {
     const [blocked, setBlocked] = useState(false)
     const [fav, setFav] = useState(null)
     const [theme, setTheme] = useState('auto')
-    const [trend, setTrend] = useState([0,0,0,0,0,0,0])
+    const [trend, setTrend] = useState([0, 0, 0, 0, 0, 0, 0])
 
     useEffect(() => {
         (async () => {
@@ -42,7 +42,7 @@ export default function Popup() {
             if (d) {
                 setFav(getFaviconForDomain(d))
                 const t = await getUsageLast7Days(d)
-                setTrend(t.map(x => Math.round(x/60)))
+                setTrend(t.map(x => Math.round(x / 60)))
             }
             const all = await getAll()
             const th = (all.theme || 'light')

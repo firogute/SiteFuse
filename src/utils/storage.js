@@ -16,34 +16,38 @@ export async function getAll() {
 
 // Higher-level helpers for domains, limits, blocking and history
 export async function getUsage(domain) {
-  const r = await getStorage(['usage']);
+  const r = await getStorage(["usage"]);
   const usage = r.usage || {};
   return usage[domain] || 0;
 }
 
 export async function setLimit(domain, minutes) {
-  const r = await getStorage(['limits']);
+  const r = await getStorage(["limits"]);
   const limits = r.limits || {};
   limits[domain] = minutes;
   await setStorage({ limits });
 }
 
 export async function removeLimit(domain) {
-  const r = await getStorage(['limits']);
+  const r = await getStorage(["limits"]);
   const limits = r.limits || {};
   delete limits[domain];
   await setStorage({ limits });
 }
 
 export async function blockDomain(domain, meta = {}) {
-  const r = await getStorage(['blocked']);
+  const r = await getStorage(["blocked"]);
   const blocked = r.blocked || {};
-  blocked[domain] = { ...(blocked[domain] || {}), ...meta, blockedAt: Date.now() };
+  blocked[domain] = {
+    ...(blocked[domain] || {}),
+    ...meta,
+    blockedAt: Date.now(),
+  };
   await setStorage({ blocked });
 }
 
 export async function unblockDomain(domain) {
-  const r = await getStorage(['blocked']);
+  const r = await getStorage(["blocked"]);
   const blocked = r.blocked || {};
   delete blocked[domain];
   await setStorage({ blocked });
@@ -51,7 +55,7 @@ export async function unblockDomain(domain) {
 
 // Usage history: store timestamped entries to enable trends (last 7 days)
 export async function addUsageEntry(domain, seconds = 60) {
-  const r = await getStorage(['usageHistory', 'usage']);
+  const r = await getStorage(["usageHistory", "usage"]);
   const usageHistory = r.usageHistory || {};
   const usage = r.usage || {};
   const now = Date.now();
@@ -66,7 +70,7 @@ export async function addUsageEntry(domain, seconds = 60) {
 }
 
 export async function getUsageLast7Days(domain) {
-  const r = await getStorage(['usageHistory']);
+  const r = await getStorage(["usageHistory"]);
   const usageHistory = (r.usageHistory && r.usageHistory[domain]) || [];
   const days = Array.from({ length: 7 }).map(() => 0);
   const now = Date.now();
