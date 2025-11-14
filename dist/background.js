@@ -630,6 +630,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
+// Merge usage reported by popup to avoid overwrite races.
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg || !msg.action) return;
+  if (msg.action === 'merge-usage') {
+    (async () => {
+      try {
+        const domain = msg.domain;
+        const reported = Number(msg.seconds) || 0;
+        const data = await getStorage(['usage']);
+        const usage = data.usage || {};
+        const stored = usage[domain] || 0;
+        // Keep the larger value to avoid losing seconds or double-counting
+        const merged = Math.max(stored, reported);
+        if (merged !== stored) {
+          usage[domain] = merged;
+          await setStorage({ usage });
+        }
+        sendResponse({ ok: true, merged });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e) });
+      }
+    })();
+    return true;
+  }
+});
+
 // Focus mode: block categories/domains for a duration
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || !msg.action) return;

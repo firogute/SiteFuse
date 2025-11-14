@@ -32,6 +32,7 @@ function ProgressBar({ value = 0 }) {
 export default function Popup() {
     const [domain, setDomain] = useState(null)
     const [usage, setUsage] = useState(0)
+    const usageRef = useRef(0)
     const [limit, setLimit] = useState(null)
     const [blocked, setBlocked] = useState(false)
     const [fav, setFav] = useState(null)
@@ -45,6 +46,9 @@ export default function Popup() {
     const [streaks, setStreaks] = useState({ current: 0, best: 0 })
     const [isActive, setIsActive] = useState(false)
     const [predictedDomains, setPredictedDomains] = useState([])
+
+    // keep a ref of latest usage so async flushes can read the current value
+    useEffect(() => { usageRef.current = usage }, [usage])
 
     useEffect(() => {
         (async () => {
@@ -182,7 +186,24 @@ export default function Popup() {
         // helper to start/stop timer
         const startTimer = () => {
             if (timer) return
-            timer = setInterval(() => setUsage((u) => (u || 0) + 1), 1000)
+            // Track unsynced optimistic seconds and flush periodically
+            let unsynced = 0
+            timer = setInterval(async () => {
+                setUsage((u) => (u || 0) + 1)
+                unsynced += 1
+                // flush every 2 seconds to persist optimistic increments (more aggressive)
+                if (unsynced >= 2) {
+                    unsynced = 0
+                    try {
+                        const localVal = usageRef.current || 0
+                        try {
+                            await new Promise((res) => chrome.runtime.sendMessage({ action: 'merge-usage', domain, seconds: localVal }, res))
+                        } catch (e) { }
+                    } catch (e) {
+                        // ignore storage errors
+                    }
+                }
+            }, 1000)
         }
         const stopTimer = () => {
             if (timer) {
@@ -245,10 +266,35 @@ export default function Popup() {
             updateActiveFromTabs()
         })()
 
+        // flush helper invoked on unload/cleanup
+        const flushToStorage = async () => {
+            try {
+                const localVal = usageRef.current || 0
+                // send merge request to background to safely merge usage values
+                try {
+                    await new Promise((res) => chrome.runtime.sendMessage({ action: 'merge-usage', domain, seconds: localVal }, res))
+                } catch (e) { }
+            } catch (e) { }
+        }
+
+        // try to flush when the popup window is closed or becomes hidden
+        const onBeforeUnload = () => { try { flushToStorage() } catch (e) { } }
+        const onVisibilityChange = () => {
+            try {
+                if (document && document.visibilityState === 'hidden') flushToStorage()
+            } catch (e) { }
+        }
+        try { window && window.addEventListener && window.addEventListener('beforeunload', onBeforeUnload) } catch (e) { }
+        try { document && document.addEventListener && document.addEventListener('visibilitychange', onVisibilityChange) } catch (e) { }
+
         return () => {
             try { chrome.storage && chrome.storage.onChanged && chrome.storage.onChanged.removeListener(onStorage) } catch (e) { }
             try { chrome.tabs && chrome.tabs.onActivated && chrome.tabs.onActivated.removeListener(onActivated) } catch (e) { }
             try { chrome.tabs && chrome.tabs.onUpdated && chrome.tabs.onUpdated.removeListener(onUpdated) } catch (e) { }
+            try { window && window.removeEventListener && window.removeEventListener('beforeunload', onBeforeUnload) } catch (e) { }
+            try { document && document.removeEventListener && document.removeEventListener('visibilitychange', onVisibilityChange) } catch (e) { }
+            // flush optimistic increments one last time
+            try { flushToStorage() } catch (e) { }
             stopTimer()
         }
     }, [domain])
