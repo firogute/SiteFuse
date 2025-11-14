@@ -111,6 +111,81 @@ async function enforceSchedules() {
   } catch (e) {}
 }
 
+// Evaluate and award gamification badges once per day (or on-demand).
+async function evaluateBadges() {
+  try {
+    const mod = await import("../utils/storage.js");
+    const { getStreaks, getBadges, awardBadge, getStreakCalendar } = mod;
+    const streaks = await getStreaks();
+    const badges = await getBadges();
+    const toNotify = [];
+
+    // First use badge
+    if (!badges["first_use"]) {
+      await awardBadge("first_use", {
+        title: "First Steps",
+        desc: "Installed SiteFuse and started tracking",
+      });
+      toNotify.push({ id: "first_use", title: "First Steps" });
+    }
+
+    // Streak-based badges
+    if ((streaks.current || 0) >= 7 && !badges["7_day_streak"]) {
+      await awardBadge("7_day_streak", {
+        title: "7 Day Streak",
+        desc: "Stayed under limits for 7 consecutive days",
+      });
+      toNotify.push({ id: "7_day_streak", title: "7 Day Streak" });
+    }
+    if ((streaks.current || 0) >= 14 && !badges["14_day_streak"]) {
+      await awardBadge("14_day_streak", {
+        title: "14 Day Streak",
+        desc: "Stayed under limits for 14 consecutive days",
+      });
+      toNotify.push({ id: "14_day_streak", title: "14 Day Streak" });
+    }
+    if ((streaks.best || 0) >= 30 && !badges["30_day_best"]) {
+      await awardBadge("30_day_best", {
+        title: "30 Day Champion",
+        desc: "Recorded a 30 day best streak",
+      });
+      toNotify.push({ id: "30_day_best", title: "30 Day Champion" });
+    }
+
+    // Consistency: last 7 days all-success
+    try {
+      const cal = await getStreakCalendar(7);
+      const allGood =
+        Array.isArray(cal) && cal.length > 0 && cal.every((c) => c.success);
+      if (allGood && !badges["consistent_7"]) {
+        await awardBadge("consistent_7", {
+          title: "Consistent 7",
+          desc: "All tracked sites under limit for the last 7 days",
+        });
+        toNotify.push({ id: "consistent_7", title: "Consistent 7" });
+      }
+    } catch (e) {
+      // ignore calendar errors
+    }
+
+    // Send notifications for newly awarded badges
+    for (const b of toNotify) {
+      try {
+        chrome.notifications.create(`sitefuse_badge_${b.id}`, {
+          type: "basic",
+          iconUrl: "/icon128.png",
+          title: "Badge Unlocked!",
+          message: b.title,
+        });
+      } catch (e) {
+        // ignore notification errors
+      }
+    }
+  } catch (e) {
+    // swallow evaluation errors
+  }
+}
+
 function getStorage(keys) {
   return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
 }
@@ -225,6 +300,10 @@ chrome.runtime.onInstalled.addListener(() => {
     // initialize storage keys
     await setStorage({ usage: {}, limits: {}, blocked: {}, debug });
     setupAlarm(debug);
+    // run badge evaluation once on install
+    try {
+      await evaluateBadges();
+    } catch (e) {}
   })();
 });
 
@@ -239,6 +318,16 @@ function setupAlarm(debug) {
       chrome.alarms.create("sitefuse_tick", { periodInMinutes: 1 });
     }
   });
+  // create a daily alarm to run badge evaluation and other daily maintenance
+  try {
+    // clear and recreate daily alarm
+    chrome.alarms.clear("sitefuse_daily", () => {
+      // 1440 minutes = 24 hours
+      chrome.alarms.create("sitefuse_daily", { periodInMinutes: 1440 });
+    });
+  } catch (e) {
+    // ignore daily alarm errors
+  }
 }
 
 // Watch debug setting changes to reconfigure alarm
@@ -263,6 +352,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "sitefuse_daily") {
+    try {
+      await evaluateBadges();
+    } catch (e) {}
+    return;
+  }
   if (alarm.name !== "sitefuse_tick") return;
   // Aggregate usage across open tabs (sums per-domain, respects multiple tabs)
   const d = await getStorage(["debug"]);
@@ -443,6 +538,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       snoozes[domain] = Date.now() + mins * 60 * 1000;
       await setStorage({ snoozes });
       sendResponse({ ok: true, until: snoozes[domain] });
+    })();
+    return true;
+  }
+  if (msg.action === "evaluate-badges") {
+    (async () => {
+      try {
+        await evaluateBadges();
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e) });
+      }
     })();
     return true;
   }

@@ -155,7 +155,8 @@ async function evaluateBadges() {
     // Consistency: last 7 days all-success
     try {
       const cal = await getStreakCalendar(7);
-      const allGood = Array.isArray(cal) && cal.length > 0 && cal.every((c) => c.success);
+      const allGood =
+        Array.isArray(cal) && cal.length > 0 && cal.every((c) => c.success);
       if (allGood && !badges["consistent_7"]) {
         await awardBadge("consistent_7", {
           title: "Consistent 7",
@@ -299,6 +300,10 @@ chrome.runtime.onInstalled.addListener(() => {
     // initialize storage keys
     await setStorage({ usage: {}, limits: {}, blocked: {}, debug });
     setupAlarm(debug);
+    // run badge evaluation once on install
+    try {
+      await evaluateBadges();
+    } catch (e) {}
   })();
 });
 
@@ -313,6 +318,16 @@ function setupAlarm(debug) {
       chrome.alarms.create("sitefuse_tick", { periodInMinutes: 1 });
     }
   });
+  // create a daily alarm to run badge evaluation and other daily maintenance
+  try {
+    // clear and recreate daily alarm
+    chrome.alarms.clear("sitefuse_daily", () => {
+      // 1440 minutes = 24 hours
+      chrome.alarms.create("sitefuse_daily", { periodInMinutes: 1440 });
+    });
+  } catch (e) {
+    // ignore daily alarm errors
+  }
 }
 
 // Watch debug setting changes to reconfigure alarm
@@ -337,6 +352,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "sitefuse_daily") {
+    try {
+      await evaluateBadges();
+    } catch (e) {}
+    return;
+  }
   if (alarm.name !== "sitefuse_tick") return;
   // Aggregate usage across open tabs (sums per-domain, respects multiple tabs)
   const d = await getStorage(["debug"]);
@@ -517,6 +538,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       snoozes[domain] = Date.now() + mins * 60 * 1000;
       await setStorage({ snoozes });
       sendResponse({ ok: true, until: snoozes[domain] });
+    })();
+    return true;
+  }
+  if (msg.action === "evaluate-badges") {
+    (async () => {
+      try {
+        await evaluateBadges();
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e) });
+      }
     })();
     return true;
   }
