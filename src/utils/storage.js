@@ -136,3 +136,61 @@ export async function exportAllToCSV() {
     )
     .join("\n");
 }
+
+// Schedules: entries describe blocking windows per domain or category
+// schedule = { id, type: 'domain'|'category', target, days: [0..6], start: '21:00', end: '07:00', enabled: true }
+export async function getSchedules() {
+  const r = await getStorage(["schedules"]);
+  return r.schedules || [];
+}
+
+export async function addSchedule(entry) {
+  const r = await getStorage(["schedules"]);
+  const schedules = r.schedules || [];
+  entry.id = entry.id || `sch_${Date.now()}`;
+  schedules.push(entry);
+  await setStorage({ schedules });
+  return entry;
+}
+
+export async function removeSchedule(id) {
+  const r = await getStorage(["schedules"]);
+  const schedules = r.schedules || [];
+  const out = schedules.filter((s) => s.id !== id);
+  await setStorage({ schedules: out });
+}
+
+export async function getUsageLast30Days(domain) {
+  const r = await getStorage(["usageHistory"]);
+  const usageHistory = (r.usageHistory && r.usageHistory[domain]) || [];
+  const days = Array.from({ length: 30 }).map(() => 0);
+  const now = Date.now();
+  for (const e of usageHistory) {
+    const daysAgo = Math.floor((now - e.t) / (1000 * 60 * 60 * 24));
+    if (daysAgo >= 0 && daysAgo < 30) {
+      days[29 - daysAgo] += e.s;
+    }
+  }
+  return days;
+}
+
+export async function getAggregatedUsageByCategory() {
+  const all = await getStorage(["usage", "categories"]);
+  const usage = all.usage || {};
+  const categories = all.categories || {};
+  const agg = {};
+  for (const d of Object.keys(usage)) {
+    const cat = categories[d] || "other";
+    agg[cat] = (agg[cat] || 0) + usage[d];
+  }
+  return agg;
+}
+
+export async function getTopDomains(limit = 10) {
+  const all = await getStorage(["usage"]);
+  const usage = all.usage || {};
+  return Object.keys(usage)
+    .sort((a, b) => (usage[b] || 0) - (usage[a] || 0))
+    .slice(0, limit)
+    .map((d) => ({ domain: d, seconds: usage[d] || 0 }));
+}

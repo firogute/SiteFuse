@@ -43,7 +43,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const blockedUrl = chrome.runtime.getURL("blocked.html");
     if (!location.href.startsWith(blockedUrl)) location.replace(blockedUrl);
   }
-  if (msg && msg.action === 'snoozed') {
+  if (msg && msg.action === "snoozed") {
     // optional: allow page to update UI if snoozed
     // msg.until contains timestamp when snooze ends
     // No action required here; checkAndRedirect will respect snoozes on load

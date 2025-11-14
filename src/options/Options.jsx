@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { getAll, setLimit, removeLimit, blockDomain, unblockDomain, getUsageLast7Days, getStorage, setStorage } from '../utils/storage'
+import { getAll, setLimit, removeLimit, blockDomain, unblockDomain, getUsageLast7Days, getStorage, setStorage, getSchedules, addSchedule, removeSchedule } from '../utils/storage'
 import { knownCategories, defaultLimitForCategory } from '../utils/categories'
 import '../styles/tailwind.css'
 import { motion } from 'framer-motion'
@@ -37,6 +37,77 @@ function CategoryDefault({ category }) {
             <div className="mt-2 flex gap-2">
                 <input className="flex-1 p-1 rounded border text-sm" value={val} onChange={(e) => setVal(e.target.value)} />
                 <button className="px-2 py-1 rounded bg-indigo-600 text-white text-sm" onClick={save}>Save</button>
+            </div>
+        </div>
+    )
+}
+
+function ScheduleForm({ onAdd }) {
+    const [type, setType] = useState('category')
+    const [target, setTarget] = useState('social')
+    const [days, setDays] = useState([1, 2, 3, 4, 5])
+    const [start, setStart] = useState('21:00')
+    const [end, setEnd] = useState('07:00')
+
+    function toggleDay(d) {
+        setDays(ds => ds.includes(d) ? ds.filter(x => x !== d) : ds.concat([d]))
+    }
+
+    async function save() {
+        const entry = { type, target, days, start, end, enabled: true }
+        await addSchedule(entry)
+        onAdd && onAdd()
+    }
+
+    return (
+        <div className="p-3 border rounded mb-4">
+            <div className="flex gap-2 items-center">
+                <select value={type} onChange={e => setType(e.target.value)} className="p-2 rounded border">
+                    <option value="category">Category</option>
+                    <option value="domain">Domain</option>
+                </select>
+                <input className="p-2 rounded border flex-1" value={target} onChange={e => setTarget(e.target.value)} placeholder="category or domain" />
+            </div>
+            <div className="mt-2 text-sm text-gray-500">Days</div>
+            <div className="flex gap-1 mt-1">
+                {[0, 1, 2, 3, 4, 5, 6].map(d => (
+                    <button key={d} onClick={() => toggleDay(d)} className={`px-2 py-1 rounded ${days.includes(d) ? 'bg-indigo-600 text-white' : 'border'}`}>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]}</button>
+                ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+                <input type="time" value={start} onChange={e => setStart(e.target.value)} className="p-2 rounded border" />
+                <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="p-2 rounded border" />
+                <button className="px-3 py-2 rounded bg-indigo-600 text-white" onClick={save}>Add Schedule</button>
+            </div>
+        </div>
+    )
+}
+
+function ScheduleList({ refreshKey }) {
+    const [schedules, setSchedules] = useState([])
+    useEffect(() => {
+        (async () => {
+            const s = await getSchedules()
+            setSchedules(s)
+        })()
+    }, [refreshKey])
+
+    return (
+        <div className="mb-4">
+            <h3 className="text-sm font-semibold mb-2">Schedules</h3>
+            <div className="space-y-2">
+                {schedules.length === 0 && <div className="text-sm text-gray-500">No schedules configured.</div>}
+                {schedules.map(s => (
+                    <div key={s.id} className="p-2 border rounded flex items-center justify-between">
+                        <div className="text-sm">
+                            <div><strong>{s.type}</strong> — {s.target}</div>
+                            <div className="text-xs text-gray-500">{s.days.join(', ')} {s.start} — {s.end}</div>
+                        </div>
+                        <div>
+                            <button className="px-2 py-1 rounded border mr-2" onClick={async () => { await removeSchedule(s.id); setSchedules(await getSchedules()) }}>Remove</button>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     )
@@ -124,6 +195,9 @@ export default function Options() {
                         ))}
                     </div>
                 </div>
+
+                <ScheduleForm onAdd={async () => { const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} }) }} />
+                <ScheduleList refreshKey={Math.random()} />
 
                 <div className="mb-4 grid grid-cols-3 gap-3 items-center">
                     <input className="col-span-2 p-2 rounded border" placeholder="domain.com" value={domainInput} onChange={(e) => setDomainInput(e.target.value)} />

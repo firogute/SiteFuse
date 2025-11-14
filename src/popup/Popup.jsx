@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getStorage, setStorage, getUsageLast7Days, blockDomain, unblockDomain, setLimit as storageSetLimit, getAll, ensureDomainCategory, exportAllToCSV } from '../utils/storage'
+import { getStorage, setStorage, getUsageLast7Days, blockDomain, unblockDomain, setLimit as storageSetLimit, getAll, ensureDomainCategory, exportAllToCSV, getAggregatedUsageByCategory, getTopDomains } from '../utils/storage'
 import { categorizeDomain, defaultLimitForCategory } from '../utils/categories'
 import '../styles/tailwind.css'
 import { motion } from 'framer-motion'
@@ -28,6 +28,9 @@ export default function Popup() {
     const [fav, setFav] = useState(null)
     const [theme, setTheme] = useState('auto')
     const [trend, setTrend] = useState([0, 0, 0, 0, 0, 0, 0])
+    const [categoryAgg, setCategoryAgg] = useState({})
+    const [topDomains, setTopDomains] = useState([])
+    const [streaks, setStreaks] = useState({ current: 0, best: 0 })
 
     useEffect(() => {
         (async () => {
@@ -53,6 +56,14 @@ export default function Popup() {
             const th = (all.theme || 'light')
             setTheme(th)
             document.documentElement.classList.toggle('dark', th === 'dark')
+            try {
+                const agg = await getAggregatedUsageByCategory()
+                setCategoryAgg(agg)
+                const top = await getTopDomains(6)
+                setTopDomains(top)
+                const s = await getStorage(['streaks'])
+                setStreaks(s.streaks || { current: 0, best: 0 })
+            } catch (e) { }
         })()
     }, [])
 
@@ -173,6 +184,37 @@ export default function Popup() {
                         <button className="px-3 py-2 rounded border" onClick={exportCSV}>Export CSV</button>
                         <button className="px-3 py-2 rounded border" onClick={() => snooze(5)}>Snooze 5m</button>
                         {suggestion ? <button className="px-3 py-2 rounded bg-yellow-500 text-white" onClick={() => applyLimit(Math.max(10, Math.floor(usage / 60)))}>Suggest Limit</button> : null}
+                    </div>
+                </div>
+
+                <div className="mt-4 bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-semibold">Analytics</div>
+                        <div className="text-xs text-gray-500">Streaks: <span className="font-semibold">{streaks.current}</span> / Best <span className="font-semibold">{streaks.best}</span></div>
+                    </div>
+                    <div className="flex gap-3">
+                        <div className="flex-1">
+                            <div className="text-xs text-gray-500 mb-1">By Category (minutes)</div>
+                            <div className="flex gap-2 items-end h-20">
+                                {Object.keys(categoryAgg).length === 0 && <div className="text-xs text-gray-500">No data</div>}
+                                {Object.entries(categoryAgg).map(([k, v]) => (
+                                    <div key={k} className="flex-1 text-center">
+                                        <div className="h-full flex items-end">
+                                            <div className="mx-auto bg-indigo-400 rounded-t" style={{ height: `${Math.max(4, Math.min(100, Math.round(v / 60)))}%`, width: '60%' }} />
+                                        </div>
+                                        <div className="text-xs mt-1">{k}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="w-36">
+                            <div className="text-xs text-gray-500 mb-1">Top Sites</div>
+                            <ul className="text-sm">
+                                {topDomains.map(t => (
+                                    <li key={t.domain} className="truncate">{t.domain} — {Math.round(t.seconds / 60)}m</li>
+                                ))}
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </motion.div>

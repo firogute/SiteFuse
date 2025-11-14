@@ -10,6 +10,79 @@ function domainFromUrl(url) {
   }
 }
 
+async function isNowInSchedule(schedule) {
+  try {
+    if (!schedule || !schedule.enabled) return false;
+    const now = new Date();
+    const day = now.getDay();
+    if (Array.isArray(schedule.days) && schedule.days.length && !schedule.days.includes(day)) return false;
+    const pad = (n) => (n < 10 ? '0' + n : '' + n);
+    const nowStr = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    const start = schedule.start || '00:00';
+    const end = schedule.end || '23:59';
+    if (start <= end) {
+      return nowStr >= start && nowStr <= end;
+    } else {
+      // overnight schedule
+      return nowStr >= start || nowStr <= end;
+    }
+  } catch (e) { return false }
+}
+
+async function enforceSchedules() {
+  try {
+    const s = await getStorage(['schedules','categories','limits','blocked']);
+    const schedules = s.schedules || [];
+    const categories = s.categories || {};
+    const limits = s.limits || {};
+    const blocked = s.blocked || {};
+    for (const sch of schedules) {
+      if (!sch.enabled) continue;
+      const nowIn = await isNowInSchedule(sch);
+      if (!nowIn) continue;
+      if (sch.type === 'domain') {
+        const until = sch.until ? sch.until : null;
+        blocked[sch.target] = blocked[sch.target] || {};
+        if (!blocked[sch.target].until || (until && blocked[sch.target].until < until)) {
+          // set temporary block until schedule end
+          const endTs = (() => {
+            if (sch.until) return sch.until;
+            // compute next end time based on sch.end
+            const now = new Date();
+            const [h,m] = (sch.end||'23:59').split(':').map(Number);
+            const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime();
+            if (end < Date.now()) return end + 24*60*60*1000; // tomorrow
+            return end;
+          })();
+          blocked[sch.target].until = endTs;
+        }
+      } else if (sch.type === 'category') {
+        // find domains in this category and block them temporarily
+        for (const d of Object.keys(categories)) {
+          if (categories[d] === sch.target) {
+            blocked[d] = blocked[d] || {};
+            const [h,m] = (sch.end||'23:59').split(':').map(Number);
+            const now = new Date();
+            let end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).getTime();
+            if (end < Date.now()) end += 24*60*60*1000;
+            blocked[d].until = end;
+          }
+        }
+      }
+    }
+    await setStorage({ blocked });
+    // notify content scripts of redirects where necessary
+    chrome.tabs.query({}, (tabs) => {
+      for (const t of tabs) {
+        try {
+          const d = domainFromUrl(t.url);
+          if (d && blocked[d]) chrome.tabs.sendMessage(t.id, { action: 'redirect' }, () => {});
+        } catch (e) {}
+      }
+    });
+  } catch (e) {}
+}
+
 function getStorage(keys) {
   return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
 }
@@ -189,6 +262,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const domain = await getCurrentDomain();
     if (domain) await incrementDomainUsage(domain, seconds);
   }
+  // enforce any configured schedules after updating usage
+  try { await enforceSchedules(); } catch (e) {}
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -220,6 +295,58 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       delete blocked[domain];
       await setStorage({ blocked });
       sendResponse({ ok: true });
+    })();
+    return true;
+  }
+});
+
+// Focus mode: block categories/domains for a duration
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg || !msg.action) return;
+  if (msg.action === 'start-focus') {
+    (async () => {
+      try {
+        const minutes = msg.minutes || 25;
+        const until = Date.now() + minutes * 60 * 1000;
+        const data = await getStorage(['categories']);
+        const categories = data.categories || {};
+        const toBlock = new Set();
+        if (msg.categories && msg.categories.length) {
+          for (const d of Object.keys(categories)) {
+            if (msg.categories.includes(categories[d])) toBlock.add(d);
+          }
+        }
+        if (msg.domains && msg.domains.length) {
+          for (const dd of msg.domains) toBlock.add(dd);
+        }
+        const b = (await getStorage(['blocked'])).blocked || {};
+        for (const dom of toBlock) {
+          b[dom] = { ...(b[dom] || {}), until };
+        }
+        await setStorage({ blocked: b });
+        // redirect tabs
+        chrome.tabs.query({}, (tabs) => {
+          for (const t of tabs) {
+            try {
+              const d = domainFromUrl(t.url);
+              if (d && b[d]) chrome.tabs.sendMessage(t.id, { action: 'redirect' }, () => {});
+            } catch (e) {}
+          }
+        });
+        sendResponse({ ok: true, until });
+      } catch (e) { sendResponse({ ok: false, error: String(e) }) }
+    })();
+    return true;
+  }
+  if (msg.action === 'stop-focus') {
+    (async () => {
+      try {
+        const b = (await getStorage(['blocked'])).blocked || {};
+        const targets = msg.targets || [];
+        for (const t of targets) delete b[t];
+        await setStorage({ blocked: b });
+        sendResponse({ ok: true });
+      } catch (e) { sendResponse({ ok: false, error: String(e) }) }
     })();
     return true;
   }
