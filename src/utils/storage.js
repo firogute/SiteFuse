@@ -326,3 +326,58 @@ export async function getDomainsForCategory(category) {
   }
   return out;
 }
+
+// Grace period helpers: support per-tab grace entries keyed by tabId.
+// Each grace entry is stored as: grace: { [tabId]: { domain, until } }
+export async function setGraceForTab(tabId, domain, timestamp) {
+  const r = await getStorage(["grace"]);
+  const grace = r.grace || {};
+  grace[String(tabId)] = { domain, until: timestamp };
+  await setStorage({ grace });
+}
+
+export async function getGraceForTab(tabId) {
+  const r = await getStorage(["grace"]);
+  const grace = r.grace || {};
+  const entry = grace[String(tabId)];
+  return entry || null;
+}
+
+export async function removeGraceForTab(tabId) {
+  const r = await getStorage(["grace"]);
+  const grace = r.grace || {};
+  delete grace[String(tabId)];
+  await setStorage({ grace });
+}
+
+export async function getAllGraceTabs() {
+  const r = await getStorage(["grace"]);
+  return r.grace || {};
+}
+
+// Backwards-compatible domain helpers (map previous callers if needed)
+export async function setGraceUntil(domain, timestamp) {
+  // store legacy domain-keyed entry under a special key to avoid collision
+  const r = await getStorage(["grace", "_legacy_grace"]);
+  const legacy = r._legacy_grace || {};
+  legacy[domain] = timestamp;
+  await setStorage({ _legacy_grace: legacy });
+}
+
+export async function getGraceUntil(domain) {
+  const r = await getStorage(["_legacy_grace"]);
+  const legacy = r._legacy_grace || {};
+  return legacy[domain] || null;
+}
+
+export async function removeGrace(domain) {
+  const r = await getStorage(["_legacy_grace"]);
+  const legacy = r._legacy_grace || {};
+  delete legacy[domain];
+  await setStorage({ _legacy_grace: legacy });
+}
+
+export async function getAllGrace() {
+  const r = await getStorage(["_legacy_grace"]);
+  return r._legacy_grace || {};
+}

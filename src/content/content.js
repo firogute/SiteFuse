@@ -15,13 +15,29 @@ function getStorage(keys) {
 async function checkAndRedirect() {
   const domain = domainFromUrl(location.href);
   if (!domain) return;
-  const data = await getStorage(["blocked", "snoozes"]);
+  const data = await getStorage(["blocked", "snoozes", "whitelist"]);
   const blocked = data.blocked || {};
   const snoozes = data.snoozes || {};
+  const whitelist = data.whitelist || [];
   const now = Date.now();
 
   // If snoozed, and snooze not expired, do not redirect
   if (snoozes[domain] && snoozes[domain] > now) return;
+
+  // If whitelisted, never redirect
+  if (whitelist && whitelist.includes(domain)) return;
+
+  // Ask background whether THIS TAB is in a per-tab grace period
+  const tabGrace = await new Promise((res) => {
+    try {
+      chrome.runtime.sendMessage({ action: "is-tab-in-grace" }, (resp) =>
+        res(resp || { until: null })
+      );
+    } catch (e) {
+      res({ until: null });
+    }
+  });
+  if (tabGrace && tabGrace.until && tabGrace.until > now) return;
 
   const entry = blocked[domain];
   if (entry) {
@@ -40,8 +56,18 @@ async function checkAndRedirect() {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.action === "redirect") {
-    const blockedUrl = chrome.runtime.getURL("blocked.html");
-    if (!location.href.startsWith(blockedUrl)) location.replace(blockedUrl);
+    (async () => {
+      const data = await getStorage(["whitelist", "snoozes"]);
+      const whitelist = data.whitelist || [];
+      const snoozes = data.snoozes || {};
+      const now = Date.now();
+      const domain = domainFromUrl(location.href);
+      if (!domain) return;
+      if (whitelist && whitelist.includes(domain)) return;
+      if (snoozes[domain] && snoozes[domain] > now) return;
+      const blockedUrl = chrome.runtime.getURL("blocked.html");
+      if (!location.href.startsWith(blockedUrl)) location.replace(blockedUrl);
+    })();
   }
   if (msg && msg.action === "snoozed") {
     // optional: allow page to update UI if snoozed

@@ -1,15 +1,32 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { getAll, setLimit, removeLimit, blockDomain, unblockDomain, getUsageLast7Days, getStorage, setStorage, getSchedules, addSchedule, removeSchedule, getWhitelist, addWhitelist, removeWhitelist, getCategoriesList, addCategory, removeCategory, assignDomainToCategory, getDomainsForCategory } from '../utils/storage'
 import { knownCategories, defaultLimitForCategory, categorizeDomain } from '../utils/categories'
 import '../styles/tailwind.css'
 import { motion } from 'framer-motion'
 import { TrashIcon, BellAlertIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
+import DomainsPanel from './components/DomainsPanel'
+import SocialPanel from './components/SocialPanel'
+import WhitelistPanel from './components/WhitelistPanel'
+import CategoriesPanel from './components/CategoriesPanel'
+import { DomainDetail as DomainDetailModal } from './components/UI'
 
-function formatUsage(s) {
-    if (!s) return '0m 0s'
-    const mm = Math.floor(s / 60)
-    const ss = s % 60
-    return `${mm}m ${ss}s`
+// UI helpers
+const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v))
+
+function UsageBar({ value, label }) {
+    const pct = clamp(value || 0)
+    const color = pct >= 90 ? 'bg-red-500' : pct >= 75 ? 'bg-orange-400' : 'bg-indigo-500'
+    return (
+        <div className="w-full">
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                <div className="text-xs">{label}</div>
+                <div className="font-semibold text-xs">{pct}%</div>
+            </div>
+            <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} className={`h-2 ${color}`} />
+            </div>
+        </div>
+    )
 }
 
 function CategoryDefault({ category }) {
@@ -32,11 +49,20 @@ function CategoryDefault({ category }) {
     }
 
     return (
-        <div className="p-2 border rounded card-elevate">
-            <div className="text-xs muted-small">{category}</div>
-            <div className="mt-2 flex gap-2">
-                <input className="sf-input flex-1 text-sm" value={val} onChange={(e) => setVal(e.target.value)} />
-                <button className="px-2 py-1 rounded sf-btn-primary text-sm" onClick={save}>Save</button>
+        <div className="p-2 border rounded bg-white dark:bg-gray-800">
+            <div className="text-xs text-gray-500 mb-1">{category}</div>
+            <div className="flex gap-1">
+                <input
+                    className="flex-1 min-w-0 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700"
+                    value={val}
+                    onChange={(e) => setVal(e.target.value)}
+                />
+                <button
+                    className="px-2 py-1 rounded bg-indigo-600 text-white text-xs min-w-[40px]"
+                    onClick={save}
+                >
+                    Save
+                </button>
             </div>
         </div>
     )
@@ -60,24 +86,57 @@ function ScheduleForm({ onAdd }) {
     }
 
     return (
-        <div className="p-3 border rounded mb-4 card-elevate">
-            <div className="flex gap-2 items-center">
-                <select value={type} onChange={e => setType(e.target.value)} className="sf-input">
+        <div className="p-3 border rounded mb-3 bg-white dark:bg-gray-800">
+            <div className="flex flex-col gap-2 mb-2">
+                <select
+                    value={type}
+                    onChange={e => setType(e.target.value)}
+                    className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700"
+                >
                     <option value="category">Category</option>
                     <option value="domain">Domain</option>
                 </select>
-                <input className="sf-input flex-1" value={target} onChange={e => setTarget(e.target.value)} placeholder="category or domain" />
+                <input
+                    className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700"
+                    value={target}
+                    onChange={e => setTarget(e.target.value)}
+                    placeholder="category or domain"
+                />
             </div>
-            <div className="mt-2 text-sm text-gray-500">Days</div>
-            <div className="flex gap-1 mt-1">
+            <div className="text-xs text-gray-500 mb-1">Days</div>
+            <div className="flex flex-wrap gap-1 mb-2">
                 {[0, 1, 2, 3, 4, 5, 6].map(d => (
-                    <button key={d} onClick={() => toggleDay(d)} className={`px-2 py-1 rounded ${days.includes(d) ? 'bg-indigo-600 text-white' : 'border'}`}>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]}</button>
+                    <button
+                        key={d}
+                        onClick={() => toggleDay(d)}
+                        className={`px-2 py-1 rounded text-xs min-w-[28px] ${days.includes(d)
+                            ? 'bg-indigo-600 text-white'
+                            : 'border border-gray-300 dark:border-gray-600'
+                            }`}
+                    >
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d].slice(0, 3)}
+                    </button>
                 ))}
             </div>
-            <div className="mt-2 flex gap-2">
-                <input type="time" value={start} onChange={e => setStart(e.target.value)} className="sf-input" />
-                <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="sf-input" />
-                <button className="px-3 py-2 rounded sf-btn-primary" onClick={save}>Add Schedule</button>
+            <div className="flex flex-col gap-2">
+                <input
+                    type="time"
+                    value={start}
+                    onChange={e => setStart(e.target.value)}
+                    className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700"
+                />
+                <input
+                    type="time"
+                    value={end}
+                    onChange={e => setEnd(e.target.value)}
+                    className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700"
+                />
+                <button
+                    className="w-full px-2 py-1 rounded bg-indigo-600 text-white text-sm"
+                    onClick={save}
+                >
+                    Add Schedule
+                </button>
             </div>
         </div>
     )
@@ -93,19 +152,24 @@ function ScheduleList({ refreshKey }) {
     }, [refreshKey])
 
     return (
-        <div className="mb-4">
+        <div className="mb-3">
             <h3 className="text-sm font-semibold mb-2">Schedules</h3>
             <div className="space-y-2">
-                {schedules.length === 0 && <div className="text-sm text-gray-500">No schedules configured.</div>}
+                {schedules.length === 0 && <div className="text-xs text-gray-500">No schedules configured</div>}
                 {schedules.map(s => (
-                    <div key={s.id} className="p-2 border rounded flex items-center justify-between">
-                        <div className="text-sm">
+                    <div key={s.id} className="p-2 border rounded bg-white dark:bg-gray-800">
+                        <div className="text-xs">
                             <div><strong>{s.type}</strong> — {s.target}</div>
-                            <div className="text-xs text-gray-500">{s.days.join(', ')} {s.start} — {s.end} <span className="ml-2">({s.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone})</span></div>
+                            <div className="text-xs text-gray-500">
+                                {s.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d].slice(0, 3)).join(', ')} {s.start}-{s.end}
+                            </div>
                         </div>
-                        <div>
-                            <button className="px-2 py-1 rounded border mr-2" onClick={async () => { await removeSchedule(s.id); setSchedules(await getSchedules()) }}>Remove</button>
-                        </div>
+                        <button
+                            className="w-full mt-1 px-2 py-1 rounded border border-gray-300 text-xs bg-white dark:bg-gray-700"
+                            onClick={async () => { await removeSchedule(s.id); setSchedules(await getSchedules()) }}
+                        >
+                            Remove
+                        </button>
                     </div>
                 ))}
             </div>
@@ -120,28 +184,24 @@ export default function Options() {
     const [domainInput, setDomainInput] = useState('')
     const [limitInput, setLimitInput] = useState('')
     const [activeTab, setActiveTab] = useState('domains')
+    const [detailDomain, setDetailDomain] = useState(null)
     const [socialList, setSocialList] = useState([])
     const [socialCatLimit, setSocialCatLimit] = useState('')
     const [whitelist, setWhitelist] = useState([])
     const [whitelistInput, setWhitelistInput] = useState('')
     const [categoriesCustom, setCategoriesCustom] = useState([])
     const [newCategoryName, setNewCategoryName] = useState('')
-    const [selectedCategory, setSelectedCategory] = useState(null)
-    const [categoryDomains, setCategoryDomains] = useState([])
-    const [assignDomainInput, setAssignDomainInput] = useState('')
 
     useEffect(() => {
         (async () => {
             const all = await getAll()
             setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
-            // ensure category defaults exist
             const s = await getStorage(['categoryDefaults'])
             if (!s.categoryDefaults) {
                 const defs = {}
                 for (const c of knownCategories()) defs[c] = defaultLimitForCategory(c)
                 await setStorage({ categoryDefaults: defs })
             }
-            // apply theme from storage (supports 'auto') and listen for changes
             try {
                 const t = (await getStorage(['theme'])).theme || 'auto'
                 const sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)')
@@ -149,6 +209,21 @@ export default function Options() {
                 document.documentElement.classList.toggle('dark', isDark)
             } catch (e) { }
         })()
+    }, [])
+
+    // Listen to storage changes so the UI reflects live usage updates
+    useEffect(() => {
+        function onStorage(changes, area) {
+            if (area !== 'local') return
+            if (changes.usage || changes.limits || changes.blocked || changes.grace) {
+                ; (async () => {
+                    const all = await getAll()
+                    setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
+                })()
+            }
+        }
+        try { chrome.storage && chrome.storage.onChanged && chrome.storage.onChanged.addListener(onStorage) } catch (e) { }
+        return () => { try { chrome.storage && chrome.storage.onChanged && chrome.storage.onChanged.removeListener(onStorage) } catch (e) { } }
     }, [])
 
     useEffect(() => {
@@ -168,8 +243,19 @@ export default function Options() {
         return () => { try { chrome.runtime && chrome.runtime.onMessage && chrome.runtime.onMessage.removeListener(onMessage) } catch (e) { } }
     }, [])
 
+    // While a domain detail modal is open, refresh data every second so the modal shows live usage/grace countdown.
     useEffect(() => {
-        // compute detected social domains and current social category default
+        if (!detailDomain) return
+        let t = setInterval(async () => {
+            try {
+                const all = await getAll()
+                setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
+            } catch (e) { }
+        }, 1000)
+        return () => clearInterval(t)
+    }, [detailDomain])
+
+    useEffect(() => {
         (async () => {
             try {
                 const all = await getAll()
@@ -193,7 +279,6 @@ export default function Options() {
     }, [data])
 
     useEffect(() => {
-        // load whitelist and custom categories
         (async () => {
             try {
                 const wl = await getWhitelist()
@@ -205,17 +290,6 @@ export default function Options() {
             } catch (e) { }
         })()
     }, [data])
-
-    useEffect(() => {
-        // load domains for selected category
-        (async () => {
-            if (!selectedCategory) return setCategoryDomains([])
-            try {
-                const doms = await getDomainsForCategory(selectedCategory)
-                setCategoryDomains(doms)
-            } catch (e) { setCategoryDomains([]) }
-        })()
-    }, [selectedCategory, data])
 
     const domains = useMemo(() => {
         const keys = new Set([...Object.keys(data.limits || {}), ...Object.keys(data.blocked || {}), ...Object.keys(data.usage || {})])
@@ -256,217 +330,191 @@ export default function Options() {
         setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
     }
 
+    const setLimitHandler = async (dom, preset) => {
+        const mins = prompt('Set minutes for ' + dom, (data.limits[dom] || preset || 15))
+        const m = parseInt(mins, 10)
+        if (!isNaN(m)) {
+            await setLimit(dom, m)
+            const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
+        }
+    }
+
+    const suggestBlockHandler = async (dom) => {
+        const defs = (await getStorage(['categoryDefaults'])).categoryDefaults || {}
+        const def = parseInt(defs.social || defaultLimitForCategory('social'), 10)
+        const last7 = await getUsageLast7Days(dom).catch(() => [])
+        const avg = Math.round((last7.reduce((a, b) => a + b, 0) / 7) || 0)
+        if (avg >= Math.round(def * 0.75)) {
+            await blockDomain(dom)
+            const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
+        } else {
+            alert(`${dom} is not above the suggestion threshold`)
+        }
+    }
+
     return (
-        <div className="app-root font-sans">
-            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="panel" role="main" aria-labelledby="domains-heading">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <button aria-label="Back" title="Back to main" onClick={() => { try { window.location.href = '/popup.html' } catch (e) { try { window.history.back() } catch (ee) { /* nothing */ } } }} className="p-1 rounded btn-no-outline">
-                            <ArrowLeftIcon className="w-5 h-5" />
+        <div className="app-root font-sans px-3 py-4 min-w-[200px] max-w-[200px] mx-auto">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full">
+                {/* Header */}
+                <div className="flex flex-col gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                        <button
+                            aria-label="Back"
+                            onClick={() => { try { window.location.href = '/popup.html' } catch (e) { try { window.history.back() } catch (ee) { } } }}
+                            className="p-2 rounded bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-800"
+                        >
+                            <ArrowLeftIcon className="w-4 h-4 text-gray-700 dark:text-gray-200" />
                         </button>
-                        <div>
-                            <h2 id="domains-heading" className="text-xl font-semibold">SiteFuse — Domains</h2>
-                            <p className="text-sm text-gray-500">Manage tracked domains and limits</p>
+                        <div className="flex-1 min-w-0">
+                            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">SiteFuse</h1>
+                            <p className="text-xs text-gray-500">Manage domains & limits</p>
                         </div>
                     </div>
-                    <div className="header-controls">
-                        <div className="tabs" role="tablist" aria-label="Options tabs">
-                            <button aria-selected={activeTab === 'domains'} onClick={() => setActiveTab('domains')} className={activeTab === 'domains' ? 'bg-active' : ''}>Domains</button>
-                            <button aria-selected={activeTab === 'social'} onClick={() => setActiveTab('social')} className={activeTab === 'social' ? 'bg-active' : ''}>Social</button>
-                            <button aria-selected={activeTab === 'whitelist'} onClick={() => setActiveTab('whitelist')} className={activeTab === 'whitelist' ? 'bg-active' : ''}>Whitelist</button>
-                            <button aria-selected={activeTab === 'categories'} onClick={() => setActiveTab('categories')} className={activeTab === 'categories' ? 'bg-active' : ''}>Categories</button>
-                        </div>
-                        <input placeholder="Search domains" className="sf-input search-input" value={query} onChange={(e) => setQuery(e.target.value)} />
-                        <button className="px-3 py-2 rounded border text-sm btn-no-outline" onClick={() => { setSelected({}); setQuery(''); }}>Reset</button>
-                    </div>
-                </div>
 
-                <div className="mb-6">
-                    <h3 className="text-sm font-semibold mb-2">Category Defaults</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {knownCategories().map((c) => (
-                            <CategoryDefault key={c} category={c} />
-                        ))}
+                    <div className="flex gap-2">
+                        <input
+                            placeholder="Search domains..."
+                            className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                        />
+                        <button
+                            className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            onClick={() => { setSelected({}); setQuery(''); }}
+                        >
+                            Reset
+                        </button>
                     </div>
                 </div>
 
-                <ScheduleForm onAdd={async () => { const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} }) }} />
-                <ScheduleList refreshKey={Math.random()} />
-
-                {/* Social media management panel */}
-                {activeTab === 'social' && (
-                    <div className="mb-6">
-                        <h3 className="text-sm font-semibold mb-2">Social Media</h3>
-                        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-                            <div className="col-span-1 sm:col-span-2">
-                                <label className="text-sm font-medium">Category-wide limit for Social (minutes)</label>
-                                <div className="mt-2 flex gap-2">
-                                    <input className="sf-input" value={socialCatLimit} onChange={(e) => setSocialCatLimit(e.target.value)} placeholder="e.g. 30" />
-                                    <button className="px-3 py-2 rounded bg-indigo-600 text-white btn-no-outline" onClick={async () => {
-                                        const mins = parseInt(socialCatLimit, 10)
-                                        if (isNaN(mins)) return
-                                        const s = await getStorage(['categoryDefaults'])
-                                        const defs = s.categoryDefaults || {}
-                                        defs.social = mins
-                                        await setStorage({ categoryDefaults: defs })
-                                        // refresh data
-                                        const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
-                                    }}>Save</button>
-                                </div>
-                            </div>
+                {/* Main Content */}
+                <div className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg p-3">
+                    {/* Tabs */}
+                    <div className="flex flex-col gap-3 mb-4">
+                        <div className="flex gap-1 bg-gray-50 dark:bg-gray-800 p-1 rounded-lg">
+                            {['domains', 'social', 'whitelist', 'categories'].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`flex-1 px-2 py-2 rounded text-sm text-center min-w-0 transition-colors ${activeTab === tab
+                                        ? 'bg-white dark:bg-gray-900 shadow-sm font-medium text-gray-900 dark:text-white'
+                                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                        }`}
+                                >
+                                    {tab === 'domains' ? 'Sites' :
+                                        tab === 'social' ? 'Social' :
+                                            tab === 'whitelist' ? 'Allow' :
+                                                'Categories'}
+                                </button>
+                            ))}
                         </div>
 
-                        <div className="space-y-2">
-                            {socialList.length === 0 && <div className="text-sm text-gray-500">No social domains tracked yet.</div>}
-                            {socialList.map(s => (
-                                <div key={s.domain} className="p-3 border rounded flex items-center justify-between">
-                                    <div>
-                                        <div className="font-medium">{s.domain}</div>
-                                        <div className="text-xs muted-small">Last 7 days: <strong>{s.minutes}m</strong> — Avg/day: <strong>{s.avg}m</strong></div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button className="px-3 py-1 rounded border" onClick={() => blockDomain(s.domain)}>Block</button>
-                                        <button className="px-3 py-1 rounded" onClick={async () => {
-                                            const defs = (await getStorage(['categoryDefaults'])).categoryDefaults || {}
-                                            const def = parseInt(defs.social || defaultLimitForCategory('social'), 10)
-                                            if (s.avg >= Math.round(def * 0.75)) {
-                                                await blockDomain(s.domain)
-                                                const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
-                                            } else {
-                                                alert(`${s.domain} is not above the suggestion threshold`)
-                                            }
-                                        }}>Suggest Block</button>
-                                    </div>
-                                </div>
-                            ))}
+                        <div className="flex gap-2">
+                            <button
+                                className="flex-1 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm text-center hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                onClick={() => batchSetLimit(15)}
+                            >
+                                Set 15m
+                            </button>
+                            <button
+                                className="flex-1 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm text-center hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                onClick={() => batchSetLimit(30)}
+                            >
+                                Set 30m
+                            </button>
                         </div>
                     </div>
-                )}
 
-                { /* Whitelist panel */}
-                {activeTab === 'whitelist' && (
-                    <div className="mb-6">
-                        <h3 className="text-sm font-semibold mb-2">Whitelist (trusted sites)</h3>
-                        <div className="mb-3 flex gap-2">
-                            <input className="sf-input flex-1" placeholder="example.com" value={whitelistInput} onChange={(e) => setWhitelistInput(e.target.value)} />
-                            <button className="px-3 py-2 rounded bg-green-600 text-white btn-no-outline" onClick={async () => {
-                                const d = whitelistInput.trim()
-                                if (!d) return
-                                await addWhitelist(d)
-                                setWhitelist(await getWhitelist())
-                                setWhitelistInput('')
-                            }}>Add</button>
-                        </div>
-                        <div className="space-y-2">
-                            {whitelist.length === 0 && <div className="text-sm text-gray-500">No whitelist domains yet.</div>}
-                            {whitelist.map(w => (
-                                <div key={w} className="p-3 border-l-4 border-green-400 bg-green-50 dark:bg-green-900/30 rounded flex items-center justify-between">
-                                    <div>
-                                        <div className="font-medium">{w}</div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button className="px-3 py-1 rounded border text-sm" onClick={async () => { await removeWhitelist(w); setWhitelist(await getWhitelist()) }}>Remove</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                    {/* Tab Content */}
+                    <div className="mb-4 max-h-[300px] overflow-y-auto pr-1">
+                        {activeTab === 'domains' && (
+                            <DomainsPanel
+                                domains={domains}
+                                data={data}
+                                selected={selected}
+                                setSelected={setSelected}
+                                domainInput={domainInput}
+                                setDomainInput={setDomainInput}
+                                limitInput={limitInput}
+                                setLimitInput={setLimitInput}
+                                addLimit={addLimit}
+                                remove={remove}
+                                toggleBlocked={toggleBlocked}
+                                setLimitHandler={setLimitHandler}
+                                suggestBlockHandler={suggestBlockHandler}
+                                onOpenDetail={(dom) => setDetailDomain(dom)}
+                                bulkSetLimit={batchSetLimit}
+                            />
+                        )}
 
-                { /* Categories panel */}
-                {activeTab === 'categories' && (
-                    <div className="mb-6">
-                        <h3 className="text-sm font-semibold mb-2">Categories</h3>
-                        <div className="mb-3 flex gap-2">
-                            <input className="sf-input" placeholder="New category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
-                            <button className="px-3 py-2 rounded bg-indigo-600 text-white btn-no-outline" onClick={async () => {
-                                const n = newCategoryName.trim()
-                                if (!n) return
-                                await addCategory(n)
-                                setCategoriesCustom(await getCategoriesList())
-                                setNewCategoryName('')
-                            }}>Create</button>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {[...knownCategories(), ...categoriesCustom.map(c => c.name)].map(cn => (
-                                <div key={cn} className="p-3 border rounded">
-                                    <div className="flex items-center justify-between">
-                                        <div className="font-medium">{cn}</div>
-                                        <div className="text-xs muted-small">{cn === 'social' ? 'color: purple' : ''}</div>
-                                    </div>
-                                    <div className="mt-2 text-xs muted-small">Assign domains to this category or view assigned domains.</div>
-                                    <div className="mt-3 flex gap-2">
-                                        <input className="sf-input flex-1" placeholder="domain.com" value={assignDomainInput} onChange={(e) => setAssignDomainInput(e.target.value)} />
-                                        <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={async () => { if (!assignDomainInput) return; await assignDomainToCategory(assignDomainInput.trim(), cn); setAssignDomainInput(''); setData(await getAll()); }}>{'Assign'}</button>
-                                    </div>
-                                    <div className="mt-3">
-                                        <button className="text-sm text-gray-500" onClick={() => setSelectedCategory(cn)}>View assigned domains</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        {activeTab === 'social' && (
+                            <SocialPanel
+                                socialList={socialList}
+                                socialCatLimit={socialCatLimit}
+                                setSocialCatLimit={setSocialCatLimit}
+                                onSave={async () => {
+                                    const mins = parseInt(socialCatLimit, 10)
+                                    if (isNaN(mins)) return
+                                    const s = await getStorage(['categoryDefaults'])
+                                    const defs = s.categoryDefaults || {}
+                                    defs.social = mins
+                                    await setStorage({ categoryDefaults: defs })
+                                    const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
+                                }}
+                                onBlock={async (dom) => { await blockDomain(dom); const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} }) }}
+                                onSuggest={suggestBlockHandler}
+                            />
+                        )}
 
-                        {selectedCategory && (
-                            <div className="mt-4">
-                                <h4 className="text-sm font-semibold">Domains in {selectedCategory}</h4>
-                                <div className="space-y-2 mt-2">
-                                    {categoryDomains.length === 0 && <div className="text-sm text-gray-500">No domains assigned.</div>}
-                                    {categoryDomains.map(d => (
-                                        <div key={d.domain} className="p-2 border rounded flex items-center justify-between">
-                                            <div>{d.domain}</div>
-                                            <div className="text-xs muted-small">{formatUsage(d.usage)}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                        {activeTab === 'whitelist' && (
+                            <WhitelistPanel
+                                whitelist={whitelist}
+                                whitelistInput={whitelistInput}
+                                setWhitelistInput={setWhitelistInput}
+                                onAdd={async () => { const d = whitelistInput.trim(); if (!d) return; await addWhitelist(d); setWhitelist(await getWhitelist()); setWhitelistInput('') }}
+                                onRemove={async (w) => { await removeWhitelist(w); setWhitelist(await getWhitelist()) }}
+                            />
+                        )}
+
+                        {activeTab === 'categories' && (
+                            <CategoriesPanel
+                                knownCategoriesList={knownCategories()}
+                                categoriesCustom={categoriesCustom}
+                                newCategoryName={newCategoryName}
+                                setNewCategoryName={setNewCategoryName}
+                                onCreateCategory={async () => { const n = newCategoryName.trim(); if (!n) return; await addCategory(n); setCategoriesCustom(await getCategoriesList()); setNewCategoryName('') }}
+                                refreshData={async () => { const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} }) }}
+                            />
                         )}
                     </div>
-                )}
 
-                <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-                    <input className="sf-input col-span-1 sm:col-span-2" placeholder="domain.com" value={domainInput} onChange={(e) => setDomainInput(e.target.value)} />
-                    <div className="flex gap-2">
-                        <input className="sf-input flex-1" placeholder="minutes" value={limitInput} onChange={(e) => setLimitInput(e.target.value)} />
-                        <button className="px-3 py-2 rounded bg-indigo-600 text-white btn-no-outline" onClick={addLimit}>Add</button>
+                    {/* Sidebar Content */}
+                    <div className="space-y-4 border-t pt-4">
+                        <div className="p-3 border rounded-lg bg-white dark:bg-gray-800">
+                            <h3 className="text-sm font-semibold mb-3">Category Defaults</h3>
+                            <div className="grid grid-cols-2 gap-2">
+                                {knownCategories().map(c => (
+                                    <CategoryDefault key={c} category={c} />
+                                ))}
+                            </div>
+                        </div>
+
+                        <ScheduleForm onAdd={async () => { const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} }) }} />
+                        <ScheduleList refreshKey={Math.random()} />
                     </div>
                 </div>
-
-                <div className="mb-3 flex items-center gap-3 flex-wrap">
-                    <button className="px-3 py-2 rounded bg-indigo-500 text-white btn-no-outline" onClick={() => batchSetLimit(15)}>Set 15m for selected</button>
-                    <button className="px-3 py-2 rounded bg-indigo-500 text-white btn-no-outline" onClick={() => batchSetLimit(30)}>Set 30m for selected</button>
-                </div>
-
-                <div className="overflow-auto scrollable">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="text-sm text-gray-500">
-                                <th className="py-2 w-8"></th>
-                                <th className="py-2">Domain</th>
-                                <th className="py-2">Usage</th>
-                                <th className="py-2">Limit</th>
-                                <th className="py-2">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {domains.length === 0 && (
-                                <tr><td className="py-4" colSpan="5">No domains tracked yet.</td></tr>
-                            )}
-                            {domains.map((d) => (
-                                <tr key={d} className="border-t">
-                                    <td className="py-2 align-top"><input type="checkbox" checked={!!selected[d]} onChange={(e) => setSelected(s => ({ ...s, [d]: e.target.checked }))} aria-label={`Select ${d}`} /></td>
-                                    <td className="py-2 align-top break-words">{d}</td>
-                                    <td className="py-2 align-top">{formatUsage(data.usage[d])}</td>
-                                    <td className="py-2 align-top">{data.limits[d] ? `${data.limits[d]} min` : '—'}</td>
-                                    <td className="py-2 align-top">
-                                        <button className="mr-2 px-2 py-1 rounded border text-sm" onClick={() => remove(d)} aria-label={`Remove limit for ${d}`}><TrashIcon className="w-4 h-4 inline-block" /> Remove</button>
-                                        <button className="px-2 py-1 rounded bg-red-600 text-white text-sm" onClick={() => toggleBlocked(d)}>{data.blocked[d] ? 'Unblock' : 'Block'}</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
             </motion.div>
+
+            {detailDomain && (
+                <DomainDetailModal
+                    domain={detailDomain}
+                    data={data}
+                    onClose={() => setDetailDomain(null)}
+                    onRemove={async (dom) => { await remove(dom); setDetailDomain(null) }}
+                    onToggleBlocked={async (dom) => { await toggleBlocked(dom); }}
+                    onSetLimit={async (dom, mins) => { await setLimit(dom, mins); const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} }); }}
+                />
+            )}
         </div>
     )
 }

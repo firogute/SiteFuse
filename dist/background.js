@@ -43,11 +43,13 @@ async function enforceSchedules() {
       "categories",
       "limits",
       "blocked",
+      "whitelist",
     ]);
     const schedules = s.schedules || [];
     const categories = s.categories || {};
     const limits = s.limits || {};
     const blocked = s.blocked || {};
+    const whitelist = s.whitelist || [];
     for (const sch of schedules) {
       if (!sch.enabled) continue;
       const nowIn = await isNowInSchedule(sch);
@@ -98,13 +100,20 @@ async function enforceSchedules() {
       }
     }
     await setStorage({ blocked });
-    // notify content scripts of redirects where necessary
+    // notify tabs of redirects where necessary (navigate them to blocked page)
     chrome.tabs.query({}, (tabs) => {
+      const blockedUrl = chrome.runtime.getURL("blocked.html");
       for (const t of tabs) {
         try {
           const d = domainFromUrl(t.url);
-          if (d && blocked[d])
-            chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {});
+          if (d && blocked[d] && !(whitelist && whitelist.includes(d))) {
+            try {
+              chrome.tabs.update(t.id, { url: `${blockedUrl}?fromTab=${t.id}&domain=${encodeURIComponent(d)}` });
+            } catch (e) {
+              // fallback: message content script to redirect
+              try { chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {}); } catch (e) {}
+            }
+          }
         } catch (e) {}
       }
     });
@@ -203,12 +212,30 @@ async function getCurrentDomain() {
   return r.currentDomain || null;
 }
 
-async function incrementDomainUsage(domain, seconds = 60) {
+async function incrementDomainUsage(domain, seconds = 60, tabId = null) {
   if (!domain) return;
-  const data = await getStorage(["usage", "limits", "blocked"]);
+  const data = await getStorage([
+    "usage",
+    "limits",
+    "blocked",
+    "snoozes",
+    "whitelist",
+  ]);
   const usage = data.usage || {};
   const limits = data.limits || {};
   const blocked = data.blocked || {};
+  const snoozes = data.snoozes || {};
+  const whitelist = data.whitelist || [];
+
+  const now = Date.now();
+  // skip counting for whitelisted domains
+  if (whitelist && whitelist.includes(domain)) return;
+  // skip counting while snoozed
+  if (snoozes[domain] && snoozes[domain] > now) return;
+  // skip counting for actively blocked domains
+  const bEntry = blocked[domain];
+  const blockedUntil = bEntry && bEntry.until ? bEntry.until : null;
+  if (bEntry === true || (blockedUntil && blockedUntil > now)) return;
 
   usage[domain] = (usage[domain] || 0) + seconds;
 
@@ -227,22 +254,42 @@ async function incrementDomainUsage(domain, seconds = 60) {
 
   const limitMins = limits[domain];
   if (limitMins && usage[domain] >= limitMins * 60) {
-    blocked[domain] = true;
-    await setStorage({ usage, blocked });
-    chrome.tabs.query({}, (tabs) => {
-      for (const t of tabs) {
-        try {
-          const d = domainFromUrl(t.url);
-          if (d === domain) {
-            chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {});
-          }
-        } catch (e) {}
-      }
-    });
+    // If already blocked, do nothing
+    if (blocked[domain]) return;
+    // If a grace entry already exists for this domain on any tab, do not reset it for the same tab
+    const g = (await getStorage(["grace"])) || {};
+    const graceMap = g.grace || {};
+    const now = Date.now();
+    // If there is already a grace entry for this specific tab, skip
+    if (tabId && graceMap[String(tabId)] && graceMap[String(tabId)].until > now) return;
+
+    // Start a 1-minute grace period for this tab before enforcing a block
+    const graceUntil = Date.now() + 60 * 1000;
+    if (tabId) {
+      graceMap[String(tabId)] = { domain, until: graceUntil };
+    } else {
+      // fallback: assign a pseudo key by domain to preserve legacy behavior
+      graceMap[`domain_${domain}`] = { domain, until: graceUntil };
+    }
+    await setStorage({ usage, grace: graceMap });
+
+    // send one notification only for the grace period for this tab
     try {
-      // clear progress notification when fully blocked
-      chrome.notifications.clear(`sitefuse_progress_${domain}`);
+      const key = `grace_notified_${domain}_${tabId || 'legacy'}`;
+      const prev = await getStorage([key]);
+      if (!prev[key]) {
+        chrome.notifications.create(`sitefuse_grace_${domain}_${tabId || 'legacy'}`, {
+          type: "basic",
+          iconUrl: "/icon128.png",
+          title: "Time's up",
+          message: "Your time for this site is over. This tab will close in 1 minute.",
+        });
+        const obj = {};
+        obj[key] = true;
+        await setStorage(obj);
+      }
     } catch (e) {}
+
     return;
   }
   await setStorage({ usage });
@@ -338,6 +385,16 @@ function setupAlarm(debug) {
       chrome.alarms.create("sitefuse_tick", { periodInMinutes: 1 });
     }
   });
+  // grace check alarm: runs every 5 seconds to enforce grace expirations
+  chrome.alarms.clear("sitefuse_grace", () => {
+    const gMinutes = 5 / 60; // 5 seconds
+    try {
+      chrome.alarms.create("sitefuse_grace", { periodInMinutes: gMinutes });
+    } catch (e) {
+      // fall back to 1 minute if creation fails
+      chrome.alarms.create("sitefuse_grace", { periodInMinutes: 1 });
+    }
+  });
   // create a daily alarm to run badge evaluation and other daily maintenance
   try {
     // clear and recreate daily alarm
@@ -376,6 +433,44 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     try {
       await evaluateBadges();
     } catch (e) {}
+
+    // Daily maintenance: record today's results and reset usage
+    try {
+      const mod = await import("../utils/storage.js");
+      const { recordDailyResult } = mod;
+      const data = await getStorage(["limits", "usage"]);
+      const limits = data.limits || {};
+      const usage = data.usage || {};
+      const dateStr = new Date().toISOString().slice(0, 10);
+      for (const d of Object.keys(limits)) {
+        const under = (usage[d] || 0) <= (limits[d] || 0) * 60;
+        try {
+          await recordDailyResult(dateStr, d, under);
+        } catch (e) {}
+      }
+      // reset today's usage while preserving history
+      await setStorage({ usage: {} });
+
+      // clear per-domain progress notifications and threshold flags
+      try {
+        const all = await getStorage(null);
+        const keysToRemove = [];
+        for (const k of Object.keys(all || {})) {
+          if (k && k.startsWith("notif_")) keysToRemove.push(k);
+        }
+        // remove keys if any
+        if (keysToRemove.length) {
+          chrome.storage.local.remove(keysToRemove, () => {});
+        }
+        // clear progress notifications for known domains
+        const domains = Object.keys(limits || {});
+        for (const dom of domains) {
+          try {
+            chrome.notifications.clear(`sitefuse_progress_${dom}`);
+          } catch (e) {}
+        }
+      } catch (e) {}
+    } catch (e) {}
     return;
   }
   if (alarm.name !== "sitefuse_tick") return;
@@ -385,19 +480,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   const seconds = debug ? 5 : 60;
   try {
     chrome.tabs.query({}, async (tabs) => {
-      const counts = {};
+      // increment per-tab so we can attribute grace to individual tabIds
       for (const t of tabs) {
         try {
           if (!t.url) continue;
           const dom = domainFromUrl(t.url);
           if (!dom) continue;
-          counts[dom] = (counts[dom] || 0) + 1;
+          await incrementDomainUsage(dom, seconds, t.id);
         } catch (e) {}
-      }
-      // For each domain, increment usage by seconds * count
-      for (const dom of Object.keys(counts)) {
-        // check if domain is snoozed or blocked with until in the past
-        await incrementDomainUsage(dom, seconds * counts[dom]);
       }
     });
   } catch (e) {
@@ -411,20 +501,94 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   } catch (e) {}
 });
 
+// Grace expiration handler: close tabs and finalize blocks when grace ends
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (!alarm || alarm.name !== "sitefuse_grace") return;
+  try {
+    const s = await getStorage(["grace", "blocked", "whitelist"]);
+    const grace = s.grace || {};
+    const blocked = s.blocked || {};
+    const whitelist = s.whitelist || [];
+    const now = Date.now();
+    let didChange = false;
+    for (const key of Object.keys(grace)) {
+      try {
+        const entry = grace[key];
+        if (!entry || !entry.until) continue;
+        const until = entry.until;
+        const domain = entry.domain;
+        if (now >= until) {
+          // if domain is whitelisted, skip enforcement for this tab
+          if (whitelist && whitelist.includes(domain)) {
+            // remove grace entry but do not close or block
+            delete grace[key];
+            didChange = true;
+            // clear notification if present
+            try {
+              chrome.notifications.clear(`sitefuse_grace_${domain}_${key}`);
+            } catch (e) {}
+            // clear grace_notified flag
+            try {
+              const gkey = `grace_notified_${domain}_${key}`;
+              chrome.storage.local.remove([gkey]);
+            } catch (e) {}
+            continue;
+          }
+
+          // attempt to close the specific tab key (tabId)
+          try {
+            const tabIdNum = Number(key.replace(/^domain_/, "")) || Number(key);
+            if (!Number.isNaN(tabIdNum)) {
+              try {
+                chrome.tabs.remove(tabIdNum);
+              } catch (e) {}
+            }
+          } catch (e) {}
+
+          // set persistent block for the domain so future visits are redirected
+          blocked[domain] = true;
+
+          // clear grace metadata and notifications
+          try {
+            chrome.notifications.clear(`sitefuse_grace_${domain}_${key}`);
+          } catch (e) {}
+          try {
+            const gkey = `grace_notified_${domain}_${key}`;
+            chrome.storage.local.remove([gkey]);
+          } catch (e) {}
+
+          delete grace[key];
+          didChange = true;
+        }
+      } catch (e) {}
+    }
+    if (didChange) await setStorage({ grace, blocked });
+  } catch (e) {}
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.action === "block-now") {
     (async () => {
       const domain = msg.domain;
-      const data = await getStorage(["blocked"]);
+      const data = await getStorage(["blocked", "whitelist"]);
       const blocked = data.blocked || {};
+      const whitelist = data.whitelist || [];
+      // if domain is whitelisted, remove it from whitelist before blocking
+      const wl = whitelist.filter((d) => d !== domain);
       blocked[domain] = true;
-      await setStorage({ blocked });
+      await setStorage({ blocked, whitelist: wl });
       chrome.tabs.query({}, (tabs) => {
+        const blockedUrl = chrome.runtime.getURL("blocked.html");
         for (const t of tabs) {
           try {
             const d = domainFromUrl(t.url);
-            if (d === domain)
-              chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {});
+            if (d === domain) {
+              try {
+                chrome.tabs.update(t.id, { url: `${blockedUrl}?fromTab=${t.id}&domain=${encodeURIComponent(d)}` });
+              } catch (e) {
+                try { chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {}); } catch (e) {}
+              }
+            }
           } catch (e) {}
         }
       });
@@ -464,18 +628,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.domains && msg.domains.length) {
           for (const dd of msg.domains) toBlock.add(dd);
         }
-        const b = (await getStorage(["blocked"])).blocked || {};
+        const g = await getStorage(["blocked", "whitelist"]);
+        const b = g.blocked || {};
+        const whitelist = g.whitelist || [];
+        // remove blocked domains from whitelist so focus can take effect
         for (const dom of toBlock) {
+          // remove from whitelist if present
+          const idx = whitelist.indexOf(dom);
+          if (idx !== -1) whitelist.splice(idx, 1);
           b[dom] = { ...(b[dom] || {}), until };
         }
-        await setStorage({ blocked: b });
+        await setStorage({ blocked: b, whitelist });
         // redirect tabs
         chrome.tabs.query({}, (tabs) => {
+          const blockedUrl = chrome.runtime.getURL("blocked.html");
           for (const t of tabs) {
             try {
               const d = domainFromUrl(t.url);
-              if (d && b[d])
-                chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {});
+              if (d && b[d] && !(whitelist && whitelist.includes(d))) {
+                try {
+                  chrome.tabs.update(t.id, { url: `${blockedUrl}?fromTab=${t.id}&domain=${encodeURIComponent(d)}` });
+                } catch (e) {
+                  try { chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {}); } catch (e) {}
+                }
+              }
             } catch (e) {}
           }
         });
@@ -499,6 +675,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
     })();
     return true;
+  }
+});
+
+// Support queries from content/extension pages about per-tab grace
+chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
+  if (!msg || !msg.action) return;
+  if (msg.action === "is-tab-in-grace") {
+    const tabId = sender && sender.tab && sender.tab.id;
+    if (!tabId) return sendResponse({ until: null });
+    try {
+      const s = await getStorage(["grace"]);
+      const grace = s.grace || {};
+      const entry = grace[String(tabId)];
+      if (entry && entry.until) return sendResponse({ until: entry.until, domain: entry.domain });
+      return sendResponse({ until: null });
+    } catch (e) {
+      return sendResponse({ until: null });
+    }
+  }
+  if (msg.action === 'get-grace-for-tab') {
+    const tabId = msg.tabId || (sender && sender.tab && sender.tab.id);
+    if (!tabId) return sendResponse({ entry: null });
+    try {
+      const s = await getStorage(['grace']);
+      const grace = s.grace || {};
+      return sendResponse({ entry: grace[String(tabId)] || null });
+    } catch (e) {
+      return sendResponse({ entry: null });
+    }
   }
 });
 
