@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { getStorage, setStorage, getUsageLast7Days, blockDomain, unblockDomain, setLimit as storageSetLimit, getAll, ensureDomainCategory, exportAllToCSV, getAggregatedUsageByCategory, getTopDomains, getStreaks } from '../utils/storage'
+import React, { useEffect, useState, useRef } from 'react'
+import { getStorage, setStorage, getUsageLast7Days, blockDomain, unblockDomain, setLimit as storageSetLimit, getAll, ensureDomainCategory, exportAllToCSV, getAggregatedUsageByCategory, getTopDomains, getStreaks, getPredictedDistractions } from '../utils/storage'
 import Badges from './Badges'
 import StreakCalendar from './StreakCalendar'
 import { categorizeDomain, defaultLimitForCategory } from '../utils/categories'
@@ -29,6 +29,7 @@ export default function Popup() {
     const [blocked, setBlocked] = useState(false)
     const [fav, setFav] = useState(null)
     const [theme, setTheme] = useState('auto')
+    const sysPref = useRef(null)
     const [trend, setTrend] = useState([0, 0, 0, 0, 0, 0, 0])
     const [categoryAgg, setCategoryAgg] = useState({})
     const [topDomains, setTopDomains] = useState([])
@@ -55,9 +56,24 @@ export default function Popup() {
                 await ensureDomainCategory(d, cat, suggested)
             }
             const all = await getAll()
-            const th = (all.theme || 'light')
+            const th = (all.theme || 'auto')
             setTheme(th)
-            document.documentElement.classList.toggle('dark', th === 'dark')
+            // handle auto theme using matchMedia
+            sysPref.current = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)')
+            const applyTheme = (val) => {
+                if (val === 'auto') {
+                    const isDark = sysPref.current ? sysPref.current.matches : false
+                    document.documentElement.classList.toggle('dark', isDark)
+                } else {
+                    document.documentElement.classList.toggle('dark', val === 'dark')
+                }
+            }
+            applyTheme(th)
+            if (sysPref.current) {
+                sysPref.current.addEventListener && sysPref.current.addEventListener('change', () => {
+                    if ((all.theme || 'auto') === 'auto') applyTheme('auto')
+                })
+            }
             try {
                 const agg = await getAggregatedUsageByCategory()
                 setCategoryAgg(agg)
@@ -65,6 +81,10 @@ export default function Popup() {
                 setTopDomains(top)
                 const s = await getStreaks()
                 setStreaks(s)
+                try {
+                    const preds = await getPredictedDistractions()
+                    setTopDomains(preds.slice(0,6))
+                } catch(e) {}
             } catch (e) { }
         })()
     }, [])
@@ -90,10 +110,16 @@ export default function Popup() {
     }
 
     function toggleTheme() {
-        const next = theme === 'dark' ? 'light' : 'dark'
+        // cycle: auto -> dark -> light -> auto
+        const next = theme === 'auto' ? 'dark' : theme === 'dark' ? 'light' : 'auto'
         setTheme(next)
         setStorage({ theme: next })
-        document.documentElement.classList.toggle('dark', next === 'dark')
+        if (next === 'auto') {
+            const isDark = sysPref.current ? sysPref.current.matches : false
+            document.documentElement.classList.toggle('dark', isDark)
+        } else {
+            document.documentElement.classList.toggle('dark', next === 'dark')
+        }
     }
 
     function percentUsed() {
@@ -117,14 +143,30 @@ export default function Popup() {
         })
     }
 
+    function Sparkline({ data = [] }) {
+        const w = 120
+        const h = 28
+        const max = Math.max(...data, 1)
+        const points = data.map((v, i) => {
+            const x = (i / Math.max(1, data.length - 1)) * w
+            const y = h - (v / max) * (h - 4) - 2
+            return `${x},${y}`
+        }).join(' ')
+        return (
+            <svg className="sparkline" viewBox={`0 0 ${w} ${h}`} aria-hidden>
+                <polyline fill="none" stroke="#7c3aed" strokeWidth="2" points={points} strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        )
+    }
+
     const suggestion = (limit && limit > 0 && usage > 0 && usage / (limit * 60) > 0.75) || (!limit && usage > 60 * 30)
 
     return (
-        <div className="min-w-[320px] p-4 font-sans">
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-lg">
+        <div className="popup-root font-sans">
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="popup-card">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                        <img src={fav} alt={`${domain || 'site'} favicon`} className="w-8 h-8 rounded-sm" />
+                        <img src={fav || '/icon128.png'} alt={`${domain || 'site'} favicon`} className="w-8 h-8 rounded-sm" />
                         <div>
                             <div className="text-sm text-gray-500 dark:text-gray-300">Active</div>
                             <div className="text-lg font-semibold truncate">{domain || '—'}</div>
@@ -132,9 +174,9 @@ export default function Popup() {
                     </div>
                     <div className="flex items-center gap-2">
                         <motion.button aria-label="Theme toggle" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }} className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 sf-transition focus-ring" onClick={toggleTheme}>
-                            {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+                            {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : theme === 'light' ? <MoonIcon className="w-5 h-5" /> : <Cog6ToothIcon className="w-5 h-5" />}
                         </motion.button>
-                        <a className="text-sm text-gray-500 dark:text-gray-300 focus-ring" href="options.html">Settings</a>
+                        <a className="text-sm text-gray-500 dark:text-gray-300 focus-ring" href="/options.html">Settings</a>
                     </div>
                 </div>
 
@@ -172,6 +214,10 @@ export default function Popup() {
                                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-green-600 text-white sf-transition focus-ring" onClick={unblock}>Unblock</motion.button>
                             )}
                         </div>
+                        <div className="mt-2 flex gap-2">
+                            <button className="sf-btn-ghost" onClick={() => startFocus(25)}>Focus 25m</button>
+                            <button className="sf-btn-ghost" onClick={() => startFocus(50)}>Focus 50m</button>
+                        </div>
                     </div>
                 </div>
 
@@ -186,6 +232,18 @@ export default function Popup() {
                         <button className="px-3 py-2 rounded border" onClick={exportCSV}>Export CSV</button>
                         <button className="px-3 py-2 rounded border" onClick={() => snooze(5)}>Snooze 5m</button>
                         {suggestion ? <button className="px-3 py-2 rounded bg-yellow-500 text-white" onClick={() => applyLimit(Math.max(10, Math.floor(usage / 60)))}>Suggest Limit</button> : null}
+                    </div>
+                    <div className="mt-2">
+                        <div className="text-xs text-gray-500 mb-1">Prediction</div>
+                        <div className="flex items-center justify-between">
+                            <div className="text-sm text-gray-700 dark:text-gray-300">Predicted distractions</div>
+                            <div className="text-xs text-gray-500">Try pre-block</div>
+                        </div>
+                        <div className="mt-2 flex gap-2">
+                            {topDomains.map(t => (
+                                <button key={t.domain} className="px-2 py-1 rounded border text-sm truncate" onClick={() => chrome.runtime.sendMessage({ action: 'block-now', domain: t.domain })}>{t.domain}</button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
@@ -219,7 +277,7 @@ export default function Popup() {
                         </div>
                     </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between">
+                    <div className="mt-3 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div>
                             <div className="text-xs text-gray-500">Badges</div>
@@ -227,11 +285,22 @@ export default function Popup() {
                         </div>
                         <div>
                             <div className="text-xs text-gray-500">Streaks</div>
-                            <StreakCalendar days={30} />
+                                <div className="mt-1"><Sparkline data={trend.map(x => Math.round(x/60))} /></div>
                         </div>
                     </div>
                 </div>
             </motion.div>
         </div>
     )
+
+    async function startFocus(minutes = 25) {
+        try {
+            // default to blocking social/video/game categories during focus
+            const categories = ['social', 'video', 'gaming']
+            const res = await new Promise((r) => chrome.runtime.sendMessage({ action: 'start-focus', minutes, categories }, r))
+            if (res && res.ok) {
+                // optimistic UI: maybe show a small toast in the popup (omitted)
+            }
+        } catch (e) {}
+    }
 }

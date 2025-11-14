@@ -27,6 +27,26 @@
   }
 }
 
+/* Popup specific layout tweaks */
+.popup-root {
+  @apply min-w-[280px] sm:min-w-[340px] p-3;
+}
+.popup-card {
+  @apply bg-white dark:bg-gray-900 p-4 rounded-xl shadow-md;
+}
+.sf-btn-primary {
+  @apply px-3 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700;
+}
+.sf-btn-ghost {
+  @apply px-3 py-2 rounded-md border bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800;
+}
+
+/* small sparkline svg container */
+.sparkline {
+  width: 120px;
+  height: 28px;
+}
+
 /* Utility tweaks */
 .muted {
   @apply text-gray-500;

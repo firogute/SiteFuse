@@ -195,6 +195,33 @@ export async function getTopDomains(limit = 10) {
     .map((d) => ({ domain: d, seconds: usage[d] || 0 }));
 }
 
+// Predict potential distraction domains by comparing recent 7-day usage with the prior 7 days.
+export async function getPredictedDistractions(thresholdRatio = 0.5, limit = 10) {
+  const all = await getStorage(['usageHistory', 'usage']);
+  const usageHistory = all.usageHistory || {};
+  const out = [];
+  const now = Date.now();
+  for (const domain of Object.keys(usageHistory)) {
+    const arr = usageHistory[domain];
+    let recent = 0;
+    let prior = 0;
+    for (const e of arr) {
+      const daysAgo = Math.floor((now - e.t) / (1000 * 60 * 60 * 24));
+      if (daysAgo >= 0 && daysAgo < 7) recent += e.s;
+      if (daysAgo >= 7 && daysAgo < 14) prior += e.s;
+    }
+    // If prior is small, require absolute recent > 30m
+    const recentMins = recent / 60;
+    const priorMins = prior / 60;
+    const ratio = prior > 0 ? (recent - prior) / prior : recent > 0 ? 1 : 0;
+    if ((prior > 0 && ratio >= thresholdRatio) || (prior === 0 && recentMins >= 30)) {
+      out.push({ domain, recent: recentMins, prior: priorMins, score: ratio });
+    }
+  }
+  out.sort((a, b) => b.recent - a.recent);
+  return out.slice(0, limit).map((o) => ({ domain: o.domain, minutes: Math.round(o.recent) }));
+}
+
 // Gamification helpers: badges and streak calendar
 export async function getStreaks() {
   const r = await getStorage(["streaks"]);
