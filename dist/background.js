@@ -108,10 +108,16 @@ async function enforceSchedules() {
           const d = domainFromUrl(t.url);
           if (d && blocked[d] && !(whitelist && whitelist.includes(d))) {
             try {
-              chrome.tabs.update(t.id, { url: `${blockedUrl}?fromTab=${t.id}&domain=${encodeURIComponent(d)}` });
+              chrome.tabs.update(t.id, {
+                url: `${blockedUrl}?fromTab=${t.id}&domain=${encodeURIComponent(
+                  d
+                )}`,
+              });
             } catch (e) {
               // fallback: message content script to redirect
-              try { chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {}); } catch (e) {}
+              try {
+                chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {});
+              } catch (e) {}
             }
           }
         } catch (e) {}
@@ -261,7 +267,8 @@ async function incrementDomainUsage(domain, seconds = 60, tabId = null) {
     const graceMap = g.grace || {};
     const now = Date.now();
     // If there is already a grace entry for this specific tab, skip
-    if (tabId && graceMap[String(tabId)] && graceMap[String(tabId)].until > now) return;
+    if (tabId && graceMap[String(tabId)] && graceMap[String(tabId)].until > now)
+      return;
 
     // Start a 1-minute grace period for this tab before enforcing a block
     const graceUntil = Date.now() + 60 * 1000;
@@ -275,15 +282,19 @@ async function incrementDomainUsage(domain, seconds = 60, tabId = null) {
 
     // send one notification only for the grace period for this tab
     try {
-      const key = `grace_notified_${domain}_${tabId || 'legacy'}`;
+      const key = `grace_notified_${domain}_${tabId || "legacy"}`;
       const prev = await getStorage([key]);
       if (!prev[key]) {
-        chrome.notifications.create(`sitefuse_grace_${domain}_${tabId || 'legacy'}`, {
-          type: "basic",
-          iconUrl: "/icon128.png",
-          title: "Time's up",
-          message: "Your time for this site is over. This tab will close in 1 minute.",
-        });
+        chrome.notifications.create(
+          `sitefuse_grace_${domain}_${tabId || "legacy"}`,
+          {
+            type: "basic",
+            iconUrl: "/icon128.png",
+            title: "Time's up",
+            message:
+              "Your time for this site is over. This tab will close in 1 minute.",
+          }
+        );
         const obj = {};
         obj[key] = true;
         await setStorage(obj);
@@ -584,9 +595,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             const d = domainFromUrl(t.url);
             if (d === domain) {
               try {
-                chrome.tabs.update(t.id, { url: `${blockedUrl}?fromTab=${t.id}&domain=${encodeURIComponent(d)}` });
+                chrome.tabs.update(t.id, {
+                  url: `${blockedUrl}?fromTab=${
+                    t.id
+                  }&domain=${encodeURIComponent(d)}`,
+                });
               } catch (e) {
-                try { chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {}); } catch (e) {}
+                try {
+                  chrome.tabs.sendMessage(
+                    t.id,
+                    { action: "redirect" },
+                    () => {}
+                  );
+                } catch (e) {}
               }
             }
           } catch (e) {}
@@ -647,9 +668,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               const d = domainFromUrl(t.url);
               if (d && b[d] && !(whitelist && whitelist.includes(d))) {
                 try {
-                  chrome.tabs.update(t.id, { url: `${blockedUrl}?fromTab=${t.id}&domain=${encodeURIComponent(d)}` });
+                  chrome.tabs.update(t.id, {
+                    url: `${blockedUrl}?fromTab=${
+                      t.id
+                    }&domain=${encodeURIComponent(d)}`,
+                  });
                 } catch (e) {
-                  try { chrome.tabs.sendMessage(t.id, { action: "redirect" }, () => {}); } catch (e) {}
+                  try {
+                    chrome.tabs.sendMessage(
+                      t.id,
+                      { action: "redirect" },
+                      () => {}
+                    );
+                  } catch (e) {}
                 }
               }
             } catch (e) {}
@@ -688,17 +719,18 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
       const s = await getStorage(["grace"]);
       const grace = s.grace || {};
       const entry = grace[String(tabId)];
-      if (entry && entry.until) return sendResponse({ until: entry.until, domain: entry.domain });
+      if (entry && entry.until)
+        return sendResponse({ until: entry.until, domain: entry.domain });
       return sendResponse({ until: null });
     } catch (e) {
       return sendResponse({ until: null });
     }
   }
-  if (msg.action === 'get-grace-for-tab') {
+  if (msg.action === "get-grace-for-tab") {
     const tabId = msg.tabId || (sender && sender.tab && sender.tab.id);
     if (!tabId) return sendResponse({ entry: null });
     try {
-      const s = await getStorage(['grace']);
+      const s = await getStorage(["grace"]);
       const grace = s.grace || {};
       return sendResponse({ entry: grace[String(tabId)] || null });
     } catch (e) {

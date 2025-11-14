@@ -30,7 +30,9 @@ async function checkAndRedirect() {
   // Ask background whether THIS TAB is in a per-tab grace period
   const tabGrace = await new Promise((res) => {
     try {
-      chrome.runtime.sendMessage({ action: "is-tab-in-grace" }, (resp) => res(resp || { until: null }));
+      chrome.runtime.sendMessage({ action: "is-tab-in-grace" }, (resp) =>
+        res(resp || { until: null })
+      );
     } catch (e) {
       res({ until: null });
     }

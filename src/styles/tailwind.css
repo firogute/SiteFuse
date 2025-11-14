@@ -198,7 +198,8 @@ body {
   border-radius: 12px;
   padding: 0.75rem;
   box-sizing: border-box;
-  overflow: hidden;
+  /* allow inner content to scroll while footer stays visible */
+  overflow: visible;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -270,10 +271,29 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.75rem;
-  /* Main content becomes scrollable if popup is short */
-  /* overflow: auto; */
+  /* Make the main area flex-grow so footer remains visible; allow scrolling inside */
+  flex: 1 1 auto;
+  overflow: auto;
   max-height: calc(100vh - 180px);
   /* padding-right: 4px; room for scrollbar */
+  /* ensure content doesn't get hidden under sticky footer */
+  padding-bottom: 3.5rem;
+}
+
+/* Sticky footer inside the popup card so it remains visible while main scrolls */
+.popup-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0.95)
+  );
+  /* subtle top divider to separate from content */
+  border-top: 1px solid rgba(2, 6, 23, 0.06);
+  padding-top: 0.5rem;
+  padding-bottom: 0.25rem;
 }
 .popup-actions {
   display: flex;
