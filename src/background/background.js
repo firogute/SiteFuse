@@ -111,6 +111,80 @@ async function enforceSchedules() {
   } catch (e) {}
 }
 
+// Evaluate and award gamification badges once per day (or on-demand).
+async function evaluateBadges() {
+  try {
+    const mod = await import("../utils/storage.js");
+    const { getStreaks, getBadges, awardBadge, getStreakCalendar } = mod;
+    const streaks = await getStreaks();
+    const badges = await getBadges();
+    const toNotify = [];
+
+    // First use badge
+    if (!badges["first_use"]) {
+      await awardBadge("first_use", {
+        title: "First Steps",
+        desc: "Installed SiteFuse and started tracking",
+      });
+      toNotify.push({ id: "first_use", title: "First Steps" });
+    }
+
+    // Streak-based badges
+    if ((streaks.current || 0) >= 7 && !badges["7_day_streak"]) {
+      await awardBadge("7_day_streak", {
+        title: "7 Day Streak",
+        desc: "Stayed under limits for 7 consecutive days",
+      });
+      toNotify.push({ id: "7_day_streak", title: "7 Day Streak" });
+    }
+    if ((streaks.current || 0) >= 14 && !badges["14_day_streak"]) {
+      await awardBadge("14_day_streak", {
+        title: "14 Day Streak",
+        desc: "Stayed under limits for 14 consecutive days",
+      });
+      toNotify.push({ id: "14_day_streak", title: "14 Day Streak" });
+    }
+    if ((streaks.best || 0) >= 30 && !badges["30_day_best"]) {
+      await awardBadge("30_day_best", {
+        title: "30 Day Champion",
+        desc: "Recorded a 30 day best streak",
+      });
+      toNotify.push({ id: "30_day_best", title: "30 Day Champion" });
+    }
+
+    // Consistency: last 7 days all-success
+    try {
+      const cal = await getStreakCalendar(7);
+      const allGood = Array.isArray(cal) && cal.length > 0 && cal.every((c) => c.success);
+      if (allGood && !badges["consistent_7"]) {
+        await awardBadge("consistent_7", {
+          title: "Consistent 7",
+          desc: "All tracked sites under limit for the last 7 days",
+        });
+        toNotify.push({ id: "consistent_7", title: "Consistent 7" });
+      }
+    } catch (e) {
+      // ignore calendar errors
+    }
+
+    // Send notifications for newly awarded badges
+    for (const b of toNotify) {
+      try {
+        chrome.notifications.create(`sitefuse_badge_${b.id}`, {
+          type: "basic",
+          iconUrl: "/icon128.png",
+          title: "Badge Unlocked!",
+          message: b.title,
+        });
+      } catch (e) {
+        // ignore notification errors
+      }
+    }
+  } catch (e) {
+    // swallow evaluation errors
+  }
+}
+
 function getStorage(keys) {
   return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
 }

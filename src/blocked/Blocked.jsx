@@ -39,16 +39,16 @@ export default function Blocked() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
-            <motion.div initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg text-center max-w-lg">
+            <motion.div initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg text-center max-w-lg" role="main" aria-labelledby="blocked-heading">
                 <div className="text-red-600 mb-4">
                     <ExclamationTriangleIcon className="h-20 w-20 mx-auto" />
                 </div>
-                <h1 className="text-2xl font-bold mb-2">This site is blocked</h1>
+                <h1 id="blocked-heading" className="text-2xl font-bold mb-2">This site is blocked</h1>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">The site has exceeded its allowed usage time or was blocked by SiteFuse.</p>
                 {msLeft !== null ? (
                     <div className="mb-4">
                         <div className="text-sm text-gray-500">Temporary block ends in</div>
-                        <div className="text-xl font-semibold">{formatCountdown(msLeft)}</div>
+                        <div className="text-xl font-semibold" aria-live="polite">{formatCountdown(msLeft)}</div>
                     </div>
                 ) : null}
 

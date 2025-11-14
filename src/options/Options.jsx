@@ -95,7 +95,7 @@ function ScheduleList({ refreshKey }) {
     return (
         <div className="mb-4">
             <h3 className="text-sm font-semibold mb-2">Schedules</h3>
-                    <div className="space-y-2">
+            <div className="space-y-2">
                 {schedules.length === 0 && <div className="text-sm text-gray-500">No schedules configured.</div>}
                 {schedules.map(s => (
                     <div key={s.id} className="p-2 border rounded flex items-center justify-between">
@@ -175,10 +175,10 @@ export default function Options() {
 
     return (
         <div className="p-6 w-full font-sans">
-            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md">
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md" role="main" aria-labelledby="domains-heading">
                 <div className="flex items-center justify-between mb-4">
                     <div>
-                        <h2 className="text-xl font-semibold">SiteFuse — Domains</h2>
+                        <h2 id="domains-heading" className="text-xl font-semibold">SiteFuse — Domains</h2>
                         <p className="text-sm text-gray-500">Manage tracked domains and limits</p>
                     </div>
                     <div className="flex items-center gap-3">

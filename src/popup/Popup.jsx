@@ -65,7 +65,7 @@ export default function Popup() {
                 setTopDomains(top)
                 const s = await getStreaks()
                 setStreaks(s)
-            } catch (e) {}
+            } catch (e) { }
         })()
     }, [])
 
@@ -124,17 +124,17 @@ export default function Popup() {
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-lg">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                        <img src={fav} alt="favicon" className="w-8 h-8 rounded-sm" />
+                        <img src={fav} alt={`${domain || 'site'} favicon`} className="w-8 h-8 rounded-sm" />
                         <div>
                             <div className="text-sm text-gray-500 dark:text-gray-300">Active</div>
                             <div className="text-lg font-semibold truncate">{domain || '—'}</div>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button aria-label="Theme toggle" className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800" onClick={toggleTheme}>
+                        <motion.button aria-label="Theme toggle" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }} className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 sf-transition focus-ring" onClick={toggleTheme}>
                             {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
-                        </button>
-                        <a className="text-sm text-gray-500 dark:text-gray-300" href="options.html">Settings</a>
+                        </motion.button>
+                        <a className="text-sm text-gray-500 dark:text-gray-300 focus-ring" href="options.html">Settings</a>
                     </div>
                 </div>
 
@@ -142,7 +142,7 @@ export default function Popup() {
                     <div className="flex items-end justify-between gap-4">
                         <div>
                             <div className="text-xs text-gray-500">Today</div>
-                            <div className="text-2xl font-bold">{formatSeconds(usage)}</div>
+                            <div className="text-2xl font-bold" aria-live="polite">{formatSeconds(usage)}</div>
                         </div>
                         <div className="text-right">
                             <div className="text-xs text-gray-500">Limit</div>
@@ -151,7 +151,7 @@ export default function Popup() {
                     </div>
                     <div className="mt-3">
                         <ProgressBar value={percentUsed()} />
-                        <div className="text-xs text-gray-500 mt-2">{percentUsed()}% used</div>
+                        <div className="text-xs text-gray-500 mt-2" aria-hidden={false}>{percentUsed()}% used</div>
                     </div>
                 </div>
 
@@ -159,17 +159,17 @@ export default function Popup() {
                     <div>
                         <label className="text-xs text-gray-500">Quick set limit</label>
                         <div className="flex gap-2 mt-2">
-                            <button className="flex-1 px-3 py-2 rounded bg-indigo-600 text-white" onClick={() => applyLimit(10)}>10m</button>
-                            <button className="flex-1 px-3 py-2 rounded bg-indigo-600 text-white" onClick={() => applyLimit(25)}>25m</button>
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-indigo-600 text-white sf-transition focus-ring" onClick={() => applyLimit(10)}>10m</motion.button>
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-indigo-600 text-white sf-transition focus-ring" onClick={() => applyLimit(25)}>25m</motion.button>
                         </div>
                     </div>
                     <div>
                         <label className="text-xs text-gray-500">Actions</label>
                         <div className="flex gap-2 mt-2">
                             {!blocked ? (
-                                <button className="flex-1 px-3 py-2 rounded bg-red-600 text-white" onClick={blockNow}><ShieldExclamationIcon className="w-4 h-4 inline-block mr-2" />Block</button>
+                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-red-600 text-white sf-transition focus-ring" onClick={blockNow}><ShieldExclamationIcon className="w-4 h-4 inline-block mr-2" />Block</motion.button>
                             ) : (
-                                <button className="flex-1 px-3 py-2 rounded bg-green-600 text-white" onClick={unblock}>Unblock</button>
+                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-green-600 text-white sf-transition focus-ring" onClick={unblock}>Unblock</motion.button>
                             )}
                         </div>
                     </div>
