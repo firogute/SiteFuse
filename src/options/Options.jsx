@@ -54,7 +54,7 @@ function ScheduleForm({ onAdd }) {
     }
 
     async function save() {
-        const entry = { type, target, days, start, end, enabled: true }
+        const entry = { type, target, days, start, end, enabled: true, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }
         await addSchedule(entry)
         onAdd && onAdd()
     }
@@ -95,13 +95,13 @@ function ScheduleList({ refreshKey }) {
     return (
         <div className="mb-4">
             <h3 className="text-sm font-semibold mb-2">Schedules</h3>
-            <div className="space-y-2">
+                    <div className="space-y-2">
                 {schedules.length === 0 && <div className="text-sm text-gray-500">No schedules configured.</div>}
                 {schedules.map(s => (
                     <div key={s.id} className="p-2 border rounded flex items-center justify-between">
                         <div className="text-sm">
                             <div><strong>{s.type}</strong> — {s.target}</div>
-                            <div className="text-xs text-gray-500">{s.days.join(', ')} {s.start} — {s.end}</div>
+                            <div className="text-xs text-gray-500">{s.days.join(', ')} {s.start} — {s.end} <span className="ml-2">({s.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone})</span></div>
                         </div>
                         <div>
                             <button className="px-2 py-1 rounded border mr-2" onClick={async () => { await removeSchedule(s.id); setSchedules(await getSchedules()) }}>Remove</button>

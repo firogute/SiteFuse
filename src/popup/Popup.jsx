@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { getStorage, setStorage, getUsageLast7Days, blockDomain, unblockDomain, setLimit as storageSetLimit, getAll, ensureDomainCategory, exportAllToCSV, getAggregatedUsageByCategory, getTopDomains } from '../utils/storage'
+import { getStorage, setStorage, getUsageLast7Days, blockDomain, unblockDomain, setLimit as storageSetLimit, getAll, ensureDomainCategory, exportAllToCSV, getAggregatedUsageByCategory, getTopDomains, getStreaks } from '../utils/storage'
+import Badges from './Badges'
+import StreakCalendar from './StreakCalendar'
 import { categorizeDomain, defaultLimitForCategory } from '../utils/categories'
 import '../styles/tailwind.css'
 import { motion } from 'framer-motion'
@@ -61,9 +63,9 @@ export default function Popup() {
                 setCategoryAgg(agg)
                 const top = await getTopDomains(6)
                 setTopDomains(top)
-                const s = await getStorage(['streaks'])
-                setStreaks(s.streaks || { current: 0, best: 0 })
-            } catch (e) { }
+                const s = await getStreaks()
+                setStreaks(s)
+            } catch (e) {}
         })()
     }, [])
 
@@ -187,9 +189,9 @@ export default function Popup() {
                     </div>
                 </div>
 
-                <div className="mt-4 bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                <div className="mt-4 bg-gray-50 dark:bg-gray-800 p-3 rounded" role="region" aria-labelledby="analytics-heading">
                     <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-semibold">Analytics</div>
+                        <div id="analytics-heading" className="text-sm font-semibold">Analytics</div>
                         <div className="text-xs text-gray-500">Streaks: <span className="font-semibold">{streaks.current}</span> / Best <span className="font-semibold">{streaks.best}</span></div>
                     </div>
                     <div className="flex gap-3">
@@ -214,6 +216,18 @@ export default function Popup() {
                                     <li key={t.domain} className="truncate">{t.domain} — {Math.round(t.seconds / 60)}m</li>
                                 ))}
                             </ul>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div>
+                            <div className="text-xs text-gray-500">Badges</div>
+                            <Badges />
+                        </div>
+                        <div>
+                            <div className="text-xs text-gray-500">Streaks</div>
+                            <StreakCalendar days={30} />
                         </div>
                     </div>
                 </div>

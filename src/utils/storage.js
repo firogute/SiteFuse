@@ -194,3 +194,34 @@ export async function getTopDomains(limit = 10) {
     .slice(0, limit)
     .map((d) => ({ domain: d, seconds: usage[d] || 0 }));
 }
+
+// Gamification helpers: badges and streak calendar
+export async function getStreaks() {
+  const r = await getStorage(['streaks']);
+  return r.streaks || { current: 0, best: 0 };
+}
+
+export async function getBadges() {
+  const r = await getStorage(['badges']);
+  return r.badges || {};
+}
+
+export async function awardBadge(id, meta = {}) {
+  const r = await getStorage(['badges']);
+  const badges = r.badges || {};
+  badges[id] = { ...(badges[id] || {}), ...meta, awardedAt: Date.now() };
+  await setStorage({ badges });
+}
+
+export async function getStreakCalendar(days = 30) {
+  const r = await getStorage(['dailyResults']);
+  const daily = r.dailyResults || {};
+  const now = Date.now();
+  const out = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    out.push({ date: key, success: !!daily[key] && Object.values(daily[key]).every(Boolean) });
+  }
+  return out;
+}
