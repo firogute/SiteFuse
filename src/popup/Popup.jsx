@@ -7,6 +7,7 @@ import '../styles/tailwind.css'
 import { motion } from 'framer-motion'
 import { Cog6ToothIcon, ShieldExclamationIcon, MoonIcon, SunIcon } from '@heroicons/react/24/outline'
 import { getFaviconForDomain } from '../utils/favicons'
+import UsageChart from './UsageChart'
 
 function formatSeconds(s) {
     const mm = Math.floor(s / 60)
@@ -43,6 +44,7 @@ export default function Popup() {
     const [tabId, setTabId] = useState(null)
     const [categoryAgg, setCategoryAgg] = useState({})
     const [topDomains, setTopDomains] = useState([])
+    const [dragIndex, setDragIndex] = useState(null)
     const [streaks, setStreaks] = useState({ current: 0, best: 0 })
     const [isActive, setIsActive] = useState(false)
     const [predictedDomains, setPredictedDomains] = useState([])
@@ -110,6 +112,25 @@ export default function Popup() {
             } catch (e) { }
         })()
     }, [])
+
+    // Drag-and-drop handlers for top domains reordering (simple client-side only)
+    function onDragStart(e, idx) {
+        setDragIndex(idx)
+        try { e.dataTransfer.setData('text/plain', String(idx)) } catch (e) {}
+    }
+    function onDragOver(e) { e.preventDefault() }
+    function onDrop(e, idx) {
+        e.preventDefault()
+        const from = Number(e.dataTransfer.getData('text/plain'))
+        if (Number.isNaN(from)) return
+        const copy = [...topDomains]
+        const [moved] = copy.splice(from, 1)
+        copy.splice(idx, 0, moved)
+        setTopDomains(copy)
+        setDragIndex(null)
+        // persist priority ordering in storage as simple array
+        try { setStorage({ topOrder: copy.map(x => x.domain) }) } catch (e) {}
+    }
 
     async function applyLimit(mins) {
         if (!domain) return
@@ -487,25 +508,8 @@ export default function Popup() {
                 <div className="grid grid-cols-2 gap-4 mb-4">
                     {/* Trend Graph */}
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white mb-2">7-Day Trend</div>
-                        <div className="flex gap-1.5 items-end h-16">
-                            {trend.map((v, i) => {
-                                const max = Math.max(...trend) || 1
-                                const height = Math.max(6, Math.round((v / max) * 40))
-                                return (
-                                    <div key={i} className="flex-1 flex flex-col items-center">
-                                        <div
-                                            title={`${v}m`}
-                                            className="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-300"
-                                            style={{ height: `${height}px` }}
-                                        />
-                                        <div className="text-xs text-gray-500 mt-1">
-                                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'][i]}
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white mb-2">Usage Overview</div>
+                        <UsageChart labels={['S','M','T','W','T','F','S']} data={trend.map(x => x*60)} categories={categoryAgg} />
                     </div>
 
                     {/* Streaks */}
@@ -530,8 +534,17 @@ export default function Popup() {
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
                         <div className="text-sm font-medium text-gray-900 dark:text-white mb-3">Top Sites</div>
                         <div className="space-y-2">
-                            {topDomains.slice(0, 4).map((t, index) => (
-                                <div key={t.domain} className="flex justify-between items-center text-sm">
+                            {topDomains.slice(0, 6).map((t, index) => (
+                                <div key={t.domain}
+                                    draggable
+                                    onDragStart={(e) => onDragStart(e, index)}
+                                    onDragOver={onDragOver}
+                                    onDrop={(e) => onDrop(e, index)}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`Top site ${index + 1} ${t.domain}`}
+                                    className={`flex justify-between items-center text-sm p-1 rounded ${dragIndex === index ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}
+                                >
                                     <span className="truncate flex-1 mr-2 text-gray-700 dark:text-gray-300">
                                         {index + 1}. {t.domain}
                                     </span>

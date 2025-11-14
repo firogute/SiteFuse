@@ -15,8 +15,11 @@
     "framer-motion": "^10.12.16",
     "clsx": "^1.2.1",
     "@radix-ui/react-icons": "^1.0.6",
-    "@heroicons/react": "^2.0.18"
+    "@heroicons/react": "^2.0.18",
+    "chart.js": "^4.4.0",
+    "react-chartjs-2": "^5.2.0"
   },
+
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
     "vite": "^5.0.0",
