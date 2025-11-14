@@ -264,15 +264,18 @@ function showCountdownNotification(domain, ms) {
     const total = Math.max(1, ms);
     let remaining = total;
     const update = () => {
-      const pct = Math.max(0, Math.min(100, Math.round(((total - remaining) / total) * 100)));
+      const pct = Math.max(
+        0,
+        Math.min(100, Math.round(((total - remaining) / total) * 100))
+      );
       try {
         chrome.notifications.create(id, {
-          type: 'progress',
-          iconUrl: '/icon128.png',
+          type: "progress",
+          iconUrl: "/icon128.png",
           title: `${domain} — closing soon`,
-          message: `${Math.ceil(remaining/1000)}s remaining`,
+          message: `${Math.ceil(remaining / 1000)}s remaining`,
           progress: pct,
-          buttons: [{ title: 'Snooze 5m' }, { title: 'Extend 10m' }]
+          buttons: [{ title: "Snooze 5m" }, { title: "Extend 10m" }],
         });
       } catch (e) {}
     };
@@ -281,17 +284,22 @@ function showCountdownNotification(domain, ms) {
     const iv = setInterval(() => {
       remaining -= 1000;
       if (remaining <= 0) {
-        try { chrome.notifications.clear(id); } catch (e) {}
+        try {
+          chrome.notifications.clear(id);
+        } catch (e) {}
         clearInterval(_countdownTimers[id]);
         delete _countdownTimers[id];
       } else {
         try {
           chrome.notifications.update(id, {
-            type: 'progress',
-            iconUrl: '/icon128.png',
+            type: "progress",
+            iconUrl: "/icon128.png",
             title: `${domain} — closing soon`,
-            message: `${Math.ceil(remaining/1000)}s remaining`,
-            progress: Math.max(0, Math.min(100, Math.round(((total - remaining) / total) * 100)))
+            message: `${Math.ceil(remaining / 1000)}s remaining`,
+            progress: Math.max(
+              0,
+              Math.min(100, Math.round(((total - remaining) / total) * 100))
+            ),
           });
         } catch (e) {}
       }
@@ -299,7 +307,9 @@ function showCountdownNotification(domain, ms) {
     _countdownTimers[id] = iv;
     // stop after total ms
     setTimeout(() => {
-      try { chrome.notifications.clear(id); } catch (e) {}
+      try {
+        chrome.notifications.clear(id);
+      } catch (e) {}
       clearInterval(_countdownTimers[id]);
       delete _countdownTimers[id];
     }, total + 2000);
