@@ -113,17 +113,18 @@ export function classifyUrlWithConfidence(url) {
 
     // boost confidence for exact domain matches in rules
     const exactRule = CATEGORY_RULES.find((r) => r.pattern.test(host));
-    if (exactRule && exactRule.name === category) score = Math.min(0.995, score + 0.15);
+    if (exactRule && exactRule.name === category)
+      score = Math.min(0.995, score + 0.15);
 
     // small tweaks for certain TLDs or subdomains
     if (/news|blog|press/i.test(host)) {
-      if (category !== 'news') category = 'news';
+      if (category !== "news") category = "news";
       score = Math.max(score, 0.7);
     }
 
     return { category, confidence: Math.round(score * 100) / 100 };
   } catch (e) {
-    return { category: 'other', confidence: 0.4 };
+    return { category: "other", confidence: 0.4 };
   }
 }
 
@@ -131,16 +132,21 @@ export function classifyUrlWithConfidence(url) {
 export function suggestSmartLimit(category, historicalUsageMinutes = []) {
   // historicalUsageMinutes: recent daily usage array (numbers in minutes)
   const base = defaultLimitForCategory(category);
-  if (!historicalUsageMinutes || historicalUsageMinutes.length === 0) return base;
+  if (!historicalUsageMinutes || historicalUsageMinutes.length === 0)
+    return base;
 
-  const avg = historicalUsageMinutes.reduce((a, b) => a + b, 0) / historicalUsageMinutes.length;
+  const avg =
+    historicalUsageMinutes.reduce((a, b) => a + b, 0) /
+    historicalUsageMinutes.length;
 
   // If user habitually exceeds base by >30%, raise slightly as soft suggestion, else lower
   if (avg > base * 1.3) return Math.max(10, Math.round(base * 0.9));
   if (avg < base * 0.7) return Math.max(5, Math.round(base * 0.8));
 
   // otherwise return base adjusted by trend
-  const trend = historicalUsageMinutes[historicalUsageMinutes.length - 1] - historicalUsageMinutes[0];
+  const trend =
+    historicalUsageMinutes[historicalUsageMinutes.length - 1] -
+    historicalUsageMinutes[0];
   if (trend > 15) return Math.max(10, base - 5);
   if (trend < -15) return base + 10;
   return base;
@@ -149,9 +155,9 @@ export function suggestSmartLimit(category, historicalUsageMinutes = []) {
 // Predict whether a domain is likely to become a distraction soon based on short-term signals
 export function predictDistraction(domain, recentActions = {}) {
   // recentActions: {visitsLastHour, totalTimeTodayMinutes, rapidTabSwitches}
-  const visits = (recentActions.visitsLastHour || 0);
-  const timeToday = (recentActions.totalTimeTodayMinutes || 0);
-  const rapid = (recentActions.rapidTabSwitches || 0);
+  const visits = recentActions.visitsLastHour || 0;
+  const timeToday = recentActions.totalTimeTodayMinutes || 0;
+  const rapid = recentActions.rapidTabSwitches || 0;
 
   let score = 0.0;
   if (visits >= 3) score += 0.4;
@@ -160,7 +166,8 @@ export function predictDistraction(domain, recentActions = {}) {
 
   // domain heuristics
   const cat = categorizeDomain(domain);
-  if (['social', 'video', 'gaming', 'shopping', 'news'].includes(cat)) score += 0.15;
+  if (["social", "video", "gaming", "shopping", "news"].includes(cat))
+    score += 0.15;
 
   return Math.min(1, Math.round(score * 100) / 100);
 }

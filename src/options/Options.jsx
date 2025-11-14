@@ -127,8 +127,8 @@ function ScheduleForm({ onAdd }) {
                             key={d}
                             onClick={() => toggleDay(d)}
                             className={`px-2 py-2 rounded-lg text-xs font-medium transition-colors ${days.includes(d)
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                 }`}
                         >
                             {['S', 'M', 'T', 'W', 'T', 'F', 'S'][d]}
@@ -455,8 +455,8 @@ export default function Options() {
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
                                     className={`flex-1 px-4 py-3 rounded-lg text-sm text-center min-w-0 transition-all font-medium ${activeTab === tab
-                                            ? 'bg-white dark:bg-gray-900 shadow-sm text-gray-900 dark:text-white'
-                                            : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                        ? 'bg-white dark:bg-gray-900 shadow-sm text-gray-900 dark:text-white'
+                                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                                         }`}
                                 >
                                     {tab === 'domains' ? 'Sites' :

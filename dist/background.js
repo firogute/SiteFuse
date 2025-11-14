@@ -130,7 +130,8 @@ async function enforceSchedules() {
 async function evaluateBadges() {
   try {
     const mod = await import("../utils/storage.js");
-    const { getStreaks, getBadges, awardBadge, getStreakCalendar } = mod;
+    const { getStreaks, getBadges, awardBadge, getStreakCalendar, addCoins } =
+      mod;
     const streaks = await getStreaks();
     const badges = await getBadges();
     const toNotify = [];
@@ -142,6 +143,9 @@ async function evaluateBadges() {
         desc: "Installed SiteFuse and started tracking",
       });
       toNotify.push({ id: "first_use", title: "First Steps" });
+      try {
+        await addCoins(10);
+      } catch (e) {}
     }
 
     // Streak-based badges
@@ -151,6 +155,9 @@ async function evaluateBadges() {
         desc: "Stayed under limits for 7 consecutive days",
       });
       toNotify.push({ id: "7_day_streak", title: "7 Day Streak" });
+      try {
+        await addCoins(20);
+      } catch (e) {}
     }
     if ((streaks.current || 0) >= 14 && !badges["14_day_streak"]) {
       await awardBadge("14_day_streak", {
@@ -158,6 +165,9 @@ async function evaluateBadges() {
         desc: "Stayed under limits for 14 consecutive days",
       });
       toNotify.push({ id: "14_day_streak", title: "14 Day Streak" });
+      try {
+        await addCoins(40);
+      } catch (e) {}
     }
     if ((streaks.best || 0) >= 30 && !badges["30_day_best"]) {
       await awardBadge("30_day_best", {
@@ -165,6 +175,9 @@ async function evaluateBadges() {
         desc: "Recorded a 30 day best streak",
       });
       toNotify.push({ id: "30_day_best", title: "30 Day Champion" });
+      try {
+        await addCoins(80);
+      } catch (e) {}
     }
 
     // Consistency: last 7 days all-success
@@ -178,6 +191,9 @@ async function evaluateBadges() {
           desc: "All tracked sites under limit for the last 7 days",
         });
         toNotify.push({ id: "consistent_7", title: "Consistent 7" });
+        try {
+          await addCoins(25);
+        } catch (e) {}
       }
     } catch (e) {
       // ignore calendar errors
@@ -199,6 +215,95 @@ async function evaluateBadges() {
   } catch (e) {
     // swallow evaluation errors
   }
+}
+
+// Auto-adjust limits based on recent trends (run daily)
+async function autoAdjustLimits() {
+  try {
+    const data = await getStorage(["limits", "usageHistory"]);
+    const limits = data.limits || {};
+    const usageHistory = data.usageHistory || {};
+    const updated = {};
+    for (const domain of Object.keys(usageHistory)) {
+      const items = usageHistory[domain] || [];
+      // compute daily totals over the last 7 days approximate from timestamps
+      // fallback: sum recent entries for a heuristic
+      const totalMinutes = Math.round(
+        items.reduce((s, e) => s + (e.s || 0), 0) / 60
+      );
+      const current = limits[domain] || 15;
+      // if user consistently exceeds limit, nudge down (stricter), else relax slightly
+      if (totalMinutes > current * 1.3) {
+        updated[domain] = Math.max(5, Math.round(current * 0.9));
+      } else if (totalMinutes < current * 0.5) {
+        updated[domain] = Math.min(240, Math.round(current * 1.1));
+      }
+    }
+    if (Object.keys(updated).length) {
+      // merge into limits and notify user of adjustments
+      for (const d of Object.keys(updated)) limits[d] = updated[d];
+      await setStorage({ limits });
+      try {
+        chrome.notifications.create("sitefuse_auto_adjust", {
+          type: "basic",
+          iconUrl: "/icon128.png",
+          title: "Smart Limits Updated",
+          message:
+            "SiteFuse adjusted a few limits based on your recent trends.",
+        });
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+
+// Create an updating countdown/progress notification for a domain for given milliseconds
+const _countdownTimers = {};
+function showCountdownNotification(domain, ms) {
+  try {
+    const id = `sitefuse_countdown_${domain}_${Date.now()}`;
+    const total = Math.max(1, ms);
+    let remaining = total;
+    const update = () => {
+      const pct = Math.max(0, Math.min(100, Math.round(((total - remaining) / total) * 100)));
+      try {
+        chrome.notifications.create(id, {
+          type: 'progress',
+          iconUrl: '/icon128.png',
+          title: `${domain} — closing soon`,
+          message: `${Math.ceil(remaining/1000)}s remaining`,
+          progress: pct,
+          buttons: [{ title: 'Snooze 5m' }, { title: 'Extend 10m' }]
+        });
+      } catch (e) {}
+    };
+    // initial
+    update();
+    const iv = setInterval(() => {
+      remaining -= 1000;
+      if (remaining <= 0) {
+        try { chrome.notifications.clear(id); } catch (e) {}
+        clearInterval(_countdownTimers[id]);
+        delete _countdownTimers[id];
+      } else {
+        try {
+          chrome.notifications.update(id, {
+            type: 'progress',
+            iconUrl: '/icon128.png',
+            title: `${domain} — closing soon`,
+            message: `${Math.ceil(remaining/1000)}s remaining`,
+            progress: Math.max(0, Math.min(100, Math.round(((total - remaining) / total) * 100)))
+          });
+        } catch (e) {}
+      }
+    }, 1000);
+    _countdownTimers[id] = iv;
+    // stop after total ms
+    setTimeout(() => {
+      try { chrome.notifications.clear(id); } catch (e) {}
+      clearInterval(_countdownTimers[id]);
+      delete _countdownTimers[id];
+    }, total + 2000);
+  } catch (e) {}
 }
 
 function getStorage(keys) {
@@ -285,16 +390,10 @@ async function incrementDomainUsage(domain, seconds = 60, tabId = null) {
       const key = `grace_notified_${domain}_${tabId || "legacy"}`;
       const prev = await getStorage([key]);
       if (!prev[key]) {
-        chrome.notifications.create(
-          `sitefuse_grace_${domain}_${tabId || "legacy"}`,
-          {
-            type: "basic",
-            iconUrl: "/icon128.png",
-            title: "Time's up",
-            message:
-              "Your time for this site is over. This tab will close in 1 minute.",
-          }
-        );
+        // show an animated countdown/progress notification for the grace period
+        try {
+          showCountdownNotification(domain, 60 * 1000);
+        } catch (e) {}
         const obj = {};
         obj[key] = true;
         await setStorage(obj);
@@ -304,6 +403,44 @@ async function incrementDomainUsage(domain, seconds = 60, tabId = null) {
     return;
   }
   await setStorage({ usage });
+
+  // --- predictive suggestions & rapid-switch detection ---
+  try {
+    const mod = await import("../utils/categories.js");
+    const { predictDistraction, classifyUrlWithConfidence } = mod;
+    const recentActions = {};
+    try {
+      const meta = await getStorage([`tab_switches_${domain}`, `usageHistory`]);
+      recentActions.visitsLastHour = meta[`tab_switches_${domain}`] || 0;
+      // compute total minutes today for domain
+      const usageHistory =
+        (meta.usageHistory && meta.usageHistory[domain]) || [];
+      recentActions.totalTimeTodayMinutes = Math.round(
+        usageHistory.reduce((s, e) => s + (e.s || 0), 0) / 60
+      );
+      // simple rapid tab switches metric
+      recentActions.rapidTabSwitches = recentActions.visitsLastHour;
+    } catch (e) {}
+
+    const p = predictDistraction(domain, recentActions);
+    // if high probability of distraction but not yet blocked, suggest blocking
+    if (p >= 0.7) {
+      const key = `predicted_${domain}`;
+      const prev = await getStorage([key]);
+      if (!prev[key]) {
+        chrome.notifications.create(`sitefuse_predict_${domain}`, {
+          type: "basic",
+          iconUrl: "/icon128.png",
+          title: "Potential distraction detected",
+          message: `${domain} looks like it might become a distraction. Block for a focused session?`,
+          buttons: [{ title: "Block 30m" }, { title: "Remind later" }],
+        });
+        const o = {};
+        o[key] = true;
+        await setStorage(o);
+      }
+    }
+  } catch (e) {}
 
   // Send notifications at thresholds: 50%, 80%, 100% (100% handled above)
   try {
@@ -443,6 +580,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "sitefuse_daily") {
     try {
       await evaluateBadges();
+      // run auto adjustments to limits based on trends
+      try {
+        await autoAdjustLimits();
+      } catch (e) {}
     } catch (e) {}
 
     // Daily maintenance: record today's results and reset usage
@@ -633,12 +774,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // Merge usage reported by popup to avoid overwrite races.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || !msg.action) return;
-  if (msg.action === 'merge-usage') {
+  if (msg.action === "merge-usage") {
     (async () => {
       try {
         const domain = msg.domain;
         const reported = Number(msg.seconds) || 0;
-        const data = await getStorage(['usage']);
+        const data = await getStorage(["usage"]);
         const usage = data.usage || {};
         const stored = usage[domain] || 0;
         // Keep the larger value to avoid losing seconds or double-counting

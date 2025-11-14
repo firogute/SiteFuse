@@ -116,7 +116,7 @@ export default function Popup() {
     // Drag-and-drop handlers for top domains reordering (simple client-side only)
     function onDragStart(e, idx) {
         setDragIndex(idx)
-        try { e.dataTransfer.setData('text/plain', String(idx)) } catch (e) {}
+        try { e.dataTransfer.setData('text/plain', String(idx)) } catch (e) { }
     }
     function onDragOver(e) { e.preventDefault() }
     function onDrop(e, idx) {
@@ -129,7 +129,7 @@ export default function Popup() {
         setTopDomains(copy)
         setDragIndex(null)
         // persist priority ordering in storage as simple array
-        try { setStorage({ topOrder: copy.map(x => x.domain) }) } catch (e) {}
+        try { setStorage({ topOrder: copy.map(x => x.domain) }) } catch (e) { }
     }
 
     async function applyLimit(mins) {
@@ -509,7 +509,7 @@ export default function Popup() {
                     {/* Trend Graph */}
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
                         <div className="text-sm font-medium text-gray-900 dark:text-white mb-2">Usage Overview</div>
-                        <UsageChart labels={['S','M','T','W','T','F','S']} data={trend.map(x => x*60)} categories={categoryAgg} />
+                        <UsageChart labels={['S', 'M', 'T', 'W', 'T', 'F', 'S']} data={trend.map(x => x * 60)} categories={categoryAgg} />
                     </div>
 
                     {/* Streaks */}
