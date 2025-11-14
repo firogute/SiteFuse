@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { getAll, setLimit, removeLimit, blockDomain, unblockDomain, getUsageLast7Days, getStorage, setStorage, getSchedules, addSchedule, removeSchedule, getWhitelist, addWhitelist, removeWhitelist, getCategoriesList, addCategory, removeCategory, assignDomainToCategory, getDomainsForCategory } from '../utils/storage'
 import { knownCategories, defaultLimitForCategory, categorizeDomain } from '../utils/categories'
 import '../styles/tailwind.css'
-import { motion, AnimatePresence } from 'framer-motion'
-import { TrashIcon, BellAlertIcon, ArrowLeftIcon, CogIcon, ChartBarIcon, ShieldCheckIcon, TagIcon, PlusIcon, XMarkIcon, CheckIcon, ClockIcon } from '@heroicons/react/24/outline'
+import { motion } from 'framer-motion'
+import { TrashIcon, BellAlertIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 function formatUsage(s) {
     if (!s) return '0m 0s'
@@ -14,8 +14,6 @@ function formatUsage(s) {
 
 function CategoryDefault({ category }) {
     const [val, setVal] = useState('')
-    const [isEditing, setIsEditing] = useState(false)
-
     useEffect(() => {
         (async () => {
             const s = await getStorage(['categoryDefaults'])
@@ -31,62 +29,20 @@ function CategoryDefault({ category }) {
         const defs = s.categoryDefaults || {}
         defs[category] = mins
         await setStorage({ categoryDefaults: defs })
-        setIsEditing(false)
     }
 
     return (
-        <motion.div
-            layout
-            className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200"
-        >
-            <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize">{category}</span>
-                {!isEditing ? (
-                    <button
-                        onClick={() => setIsEditing(true)}
-                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
-                    >
-                        <CogIcon className="w-4 h-4" />
-                    </button>
-                ) : (
-                    <div className="flex gap-1">
-                        <button
-                            onClick={save}
-                            className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                        >
-                            <CheckIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setIsEditing(false)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        >
-                            <XMarkIcon className="w-4 h-4" />
-                        </button>
-                    </div>
-                )}
+        <div className="p-2 border rounded card-elevate">
+            <div className="text-xs muted-small">{category}</div>
+            <div className="mt-2 flex gap-2">
+                <input className="sf-input flex-1 text-sm" value={val} onChange={(e) => setVal(e.target.value)} />
+                <button className="px-2 py-1 rounded sf-btn-primary text-sm" onClick={save}>Save</button>
             </div>
-
-            {isEditing ? (
-                <div className="flex gap-2">
-                    <input
-                        className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        value={val}
-                        onChange={(e) => setVal(e.target.value)}
-                        placeholder="Minutes"
-                        type="number"
-                    />
-                </div>
-            ) : (
-                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                    {val || '∞'}<span className="text-sm font-normal text-gray-500 ml-1">min</span>
-                </div>
-            )}
-        </motion.div>
+        </div>
     )
 }
 
 function ScheduleForm({ onAdd }) {
-    const [isExpanded, setIsExpanded] = useState(false)
     const [type, setType] = useState('category')
     const [target, setTarget] = useState('social')
     const [days, setDays] = useState([1, 2, 3, 4, 5])
@@ -101,132 +57,34 @@ function ScheduleForm({ onAdd }) {
         const entry = { type, target, days, start, end, enabled: true, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }
         await addSchedule(entry)
         onAdd && onAdd()
-        setIsExpanded(false)
-        // Reset form
-        setType('category')
-        setTarget('social')
-        setDays([1, 2, 3, 4, 5])
-        setStart('21:00')
-        setEnd('07:00')
-    }
-
-    if (!isExpanded) {
-        return (
-            <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={() => setIsExpanded(true)}
-                className="w-full p-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl text-white flex items-center justify-center gap-3 hover:from-indigo-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-                <PlusIcon className="w-5 h-5" />
-                <span className="font-semibold">Add New Schedule</span>
-            </motion.button>
-        )
     }
 
     return (
-        <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-lg"
-        >
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Create New Schedule</h3>
-                <button
-                    onClick={() => setIsExpanded(false)}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg transition-colors"
-                >
-                    <XMarkIcon className="w-5 h-5" />
-                </button>
+        <div className="p-3 border rounded mb-4 card-elevate">
+            <div className="flex gap-2 items-center">
+                <select value={type} onChange={e => setType(e.target.value)} className="sf-input">
+                    <option value="category">Category</option>
+                    <option value="domain">Domain</option>
+                </select>
+                <input className="sf-input flex-1" value={target} onChange={e => setTarget(e.target.value)} placeholder="category or domain" />
             </div>
-
-            <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
-                        <select
-                            value={type}
-                            onChange={e => setType(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        >
-                            <option value="category">Category</option>
-                            <option value="domain">Domain</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Target</label>
-                        <input
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            value={target}
-                            onChange={e => setTarget(e.target.value)}
-                            placeholder="category or domain"
-                        />
-                    </div>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Days</label>
-                    <div className="flex flex-wrap gap-2">
-                        {[
-                            { value: 0, label: 'Sun' },
-                            { value: 1, label: 'Mon' },
-                            { value: 2, label: 'Tue' },
-                            { value: 3, label: 'Wed' },
-                            { value: 4, label: 'Thu' },
-                            { value: 5, label: 'Fri' },
-                            { value: 6, label: 'Sat' }
-                        ].map(({ value, label }) => (
-                            <button
-                                key={value}
-                                onClick={() => toggleDay(value)}
-                                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${days.includes(value)
-                                    ? 'bg-indigo-600 text-white shadow-md'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                    }`}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Start Time</label>
-                        <input
-                            type="time"
-                            value={start}
-                            onChange={e => setStart(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">End Time</label>
-                        <input
-                            type="time"
-                            value={end}
-                            onChange={e => setEnd(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        />
-                    </div>
-                    <div className="flex items-end">
-                        <button
-                            onClick={save}
-                            className="w-full px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg"
-                        >
-                            Add Schedule
-                        </button>
-                    </div>
-                </div>
+            <div className="mt-2 text-sm text-gray-500">Days</div>
+            <div className="flex gap-1 mt-1">
+                {[0, 1, 2, 3, 4, 5, 6].map(d => (
+                    <button key={d} onClick={() => toggleDay(d)} className={`px-2 py-1 rounded ${days.includes(d) ? 'bg-indigo-600 text-white' : 'border'}`}>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]}</button>
+                ))}
             </div>
-        </motion.div>
+            <div className="mt-2 flex gap-2">
+                <input type="time" value={start} onChange={e => setStart(e.target.value)} className="sf-input" />
+                <input type="time" value={end} onChange={e => setEnd(e.target.value)} className="sf-input" />
+                <button className="px-3 py-2 rounded sf-btn-primary" onClick={save}>Add Schedule</button>
+            </div>
+        </div>
     )
 }
 
 function ScheduleList({ refreshKey }) {
     const [schedules, setSchedules] = useState([])
-
     useEffect(() => {
         (async () => {
             const s = await getSchedules()
@@ -235,50 +93,21 @@ function ScheduleList({ refreshKey }) {
     }, [refreshKey])
 
     return (
-        <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Active Schedules</h3>
-            <div className="space-y-3">
-                {schedules.length === 0 && (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                        <ClockIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>No schedules configured yet.</p>
+        <div className="mb-4">
+            <h3 className="text-sm font-semibold mb-2">Schedules</h3>
+            <div className="space-y-2">
+                {schedules.length === 0 && <div className="text-sm text-gray-500">No schedules configured.</div>}
+                {schedules.map(s => (
+                    <div key={s.id} className="p-2 border rounded flex items-center justify-between">
+                        <div className="text-sm">
+                            <div><strong>{s.type}</strong> — {s.target}</div>
+                            <div className="text-xs text-gray-500">{s.days.join(', ')} {s.start} — {s.end} <span className="ml-2">({s.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone})</span></div>
+                        </div>
+                        <div>
+                            <button className="px-2 py-1 rounded border mr-2" onClick={async () => { await removeSchedule(s.id); setSchedules(await getSchedules()) }}>Remove</button>
+                        </div>
                     </div>
-                )}
-                <AnimatePresence>
-                    {schedules.map(s => (
-                        <motion.div
-                            key={s.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between hover:shadow-md transition-shadow duration-200"
-                        >
-                            <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-1">
-                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${s.type === 'category'
-                                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                        }`}>
-                                        {s.type}
-                                    </span>
-                                    <span className="font-semibold text-gray-900 dark:text-white">{s.target}</span>
-                                </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    {s.days.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')} • {s.start} — {s.end}
-                                </div>
-                            </div>
-                            <button
-                                onClick={async () => {
-                                    await removeSchedule(s.id);
-                                    setSchedules(await getSchedules())
-                                }}
-                                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
-                            >
-                                <TrashIcon className="w-4 h-4" />
-                            </button>
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
+                ))}
             </div>
         </div>
     )
@@ -300,27 +129,19 @@ export default function Options() {
     const [selectedCategory, setSelectedCategory] = useState(null)
     const [categoryDomains, setCategoryDomains] = useState([])
     const [assignDomainInput, setAssignDomainInput] = useState('')
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-
-    const tabs = [
-        { id: 'domains', name: 'Domains', icon: ChartBarIcon },
-        { id: 'social', name: 'Social', icon: BellAlertIcon },
-        { id: 'whitelist', name: 'Whitelist', icon: ShieldCheckIcon },
-        { id: 'categories', name: 'Categories', icon: TagIcon },
-    ]
 
     useEffect(() => {
         (async () => {
             const all = await getAll()
             setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
-
+            // ensure category defaults exist
             const s = await getStorage(['categoryDefaults'])
             if (!s.categoryDefaults) {
                 const defs = {}
                 for (const c of knownCategories()) defs[c] = defaultLimitForCategory(c)
                 await setStorage({ categoryDefaults: defs })
             }
-
+            // apply theme from storage (supports 'auto') and listen for changes
             try {
                 const t = (await getStorage(['theme'])).theme || 'auto'
                 const sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)')
@@ -348,6 +169,7 @@ export default function Options() {
     }, [])
 
     useEffect(() => {
+        // compute detected social domains and current social category default
         (async () => {
             try {
                 const all = await getAll()
@@ -371,6 +193,7 @@ export default function Options() {
     }, [data])
 
     useEffect(() => {
+        // load whitelist and custom categories
         (async () => {
             try {
                 const wl = await getWhitelist()
@@ -384,6 +207,7 @@ export default function Options() {
     }, [data])
 
     useEffect(() => {
+        // load domains for selected category
         (async () => {
             if (!selectedCategory) return setCategoryDomains([])
             try {
@@ -433,339 +257,216 @@ export default function Options() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-            {/* Header */}
-            <motion.header
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50"
-            >
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={() => { try { window.location.href = '/popup.html' } catch (e) { try { window.history.back() } catch (ee) { } } }}
-                                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
-                            >
-                                <ArrowLeftIcon className="w-5 h-5" />
-                            </button>
-                            <div>
-                                <h1 className="text-xl font-bold text-gray-900 dark:text-white">SiteFuse</h1>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Advanced Domain Management</p>
+        <div className="app-root font-sans">
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="panel" role="main" aria-labelledby="domains-heading">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <button aria-label="Back" title="Back to main" onClick={() => { try { window.location.href = '/popup.html' } catch (e) { try { window.history.back() } catch (ee) { /* nothing */ } } }} className="p-1 rounded btn-no-outline">
+                            <ArrowLeftIcon className="w-5 h-5" />
+                        </button>
+                        <div>
+                            <h2 id="domains-heading" className="text-xl font-semibold">SiteFuse — Domains</h2>
+                            <p className="text-sm text-gray-500">Manage tracked domains and limits</p>
+                        </div>
+                    </div>
+                    <div className="header-controls">
+                        <div className="tabs" role="tablist" aria-label="Options tabs">
+                            <button aria-selected={activeTab === 'domains'} onClick={() => setActiveTab('domains')} className={activeTab === 'domains' ? 'bg-active' : ''}>Domains</button>
+                            <button aria-selected={activeTab === 'social'} onClick={() => setActiveTab('social')} className={activeTab === 'social' ? 'bg-active' : ''}>Social</button>
+                            <button aria-selected={activeTab === 'whitelist'} onClick={() => setActiveTab('whitelist')} className={activeTab === 'whitelist' ? 'bg-active' : ''}>Whitelist</button>
+                            <button aria-selected={activeTab === 'categories'} onClick={() => setActiveTab('categories')} className={activeTab === 'categories' ? 'bg-active' : ''}>Categories</button>
+                        </div>
+                        <input placeholder="Search domains" className="sf-input search-input" value={query} onChange={(e) => setQuery(e.target.value)} />
+                        <button className="px-3 py-2 rounded border text-sm btn-no-outline" onClick={() => { setSelected({}); setQuery(''); }}>Reset</button>
+                    </div>
+                </div>
+
+                <div className="mb-6">
+                    <h3 className="text-sm font-semibold mb-2">Category Defaults</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {knownCategories().map((c) => (
+                            <CategoryDefault key={c} category={c} />
+                        ))}
+                    </div>
+                </div>
+
+                <ScheduleForm onAdd={async () => { const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} }) }} />
+                <ScheduleList refreshKey={Math.random()} />
+
+                {/* Social media management panel */}
+                {activeTab === 'social' && (
+                    <div className="mb-6">
+                        <h3 className="text-sm font-semibold mb-2">Social Media</h3>
+                        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                            <div className="col-span-1 sm:col-span-2">
+                                <label className="text-sm font-medium">Category-wide limit for Social (minutes)</label>
+                                <div className="mt-2 flex gap-2">
+                                    <input className="sf-input" value={socialCatLimit} onChange={(e) => setSocialCatLimit(e.target.value)} placeholder="e.g. 30" />
+                                    <button className="px-3 py-2 rounded bg-indigo-600 text-white btn-no-outline" onClick={async () => {
+                                        const mins = parseInt(socialCatLimit, 10)
+                                        if (isNaN(mins)) return
+                                        const s = await getStorage(['categoryDefaults'])
+                                        const defs = s.categoryDefaults || {}
+                                        defs.social = mins
+                                        await setStorage({ categoryDefaults: defs })
+                                        // refresh data
+                                        const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
+                                    }}>Save</button>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Mobile menu button */}
-                        <button
-                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            className="lg:hidden p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-                        >
-                            <div className="w-5 h-5 flex flex-col justify-between">
-                                <span className={`w-full h-0.5 bg-current transform transition-all duration-200 ${isMobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></span>
-                                <span className={`w-full h-0.5 bg-current transition-all duration-200 ${isMobileMenuOpen ? 'opacity-0' : 'opacity-100'}`}></span>
-                                <span className={`w-full h-0.5 bg-current transform transition-all duration-200 ${isMobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`}></span>
-                            </div>
-                        </button>
-
-                        {/* Desktop Navigation */}
-                        <nav className="hidden lg:flex items-center gap-1">
-                            {tabs.map((tab) => {
-                                const Icon = tab.icon
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${activeTab === tab.id
-                                            ? 'bg-indigo-600 text-white shadow-md'
-                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
-                                            }`}
-                                    >
-                                        <Icon className="w-4 h-4" />
-                                        {tab.name}
-                                    </button>
-                                )
-                            })}
-                        </nav>
+                        <div className="space-y-2">
+                            {socialList.length === 0 && <div className="text-sm text-gray-500">No social domains tracked yet.</div>}
+                            {socialList.map(s => (
+                                <div key={s.domain} className="p-3 border rounded flex items-center justify-between">
+                                    <div>
+                                        <div className="font-medium">{s.domain}</div>
+                                        <div className="text-xs muted-small">Last 7 days: <strong>{s.minutes}m</strong> — Avg/day: <strong>{s.avg}m</strong></div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button className="px-3 py-1 rounded border" onClick={() => blockDomain(s.domain)}>Block</button>
+                                        <button className="px-3 py-1 rounded" onClick={async () => {
+                                            const defs = (await getStorage(['categoryDefaults'])).categoryDefaults || {}
+                                            const def = parseInt(defs.social || defaultLimitForCategory('social'), 10)
+                                            if (s.avg >= Math.round(def * 0.75)) {
+                                                await blockDomain(s.domain)
+                                                const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
+                                            } else {
+                                                alert(`${s.domain} is not above the suggestion threshold`)
+                                            }
+                                        }}>Suggest Block</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
+                )}
 
-                    {/* Mobile Navigation */}
-                    <AnimatePresence>
-                        {isMobileMenuOpen && (
-                            <motion.nav
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="lg:hidden border-t border-gray-200 dark:border-gray-700 py-4"
-                            >
-                                <div className="space-y-2">
-                                    {tabs.map((tab) => {
-                                        const Icon = tab.icon
-                                        return (
-                                            <button
-                                                key={tab.id}
-                                                onClick={() => {
-                                                    setActiveTab(tab.id)
-                                                    setIsMobileMenuOpen(false)
-                                                }}
-                                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${activeTab === tab.id
-                                                    ? 'bg-indigo-600 text-white shadow-md'
-                                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
-                                                    }`}
-                                            >
-                                                <Icon className="w-5 h-5" />
-                                                {tab.name}
-                                            </button>
-                                        )
-                                    })}
+                { /* Whitelist panel */}
+                {activeTab === 'whitelist' && (
+                    <div className="mb-6">
+                        <h3 className="text-sm font-semibold mb-2">Whitelist (trusted sites)</h3>
+                        <div className="mb-3 flex gap-2">
+                            <input className="sf-input flex-1" placeholder="example.com" value={whitelistInput} onChange={(e) => setWhitelistInput(e.target.value)} />
+                            <button className="px-3 py-2 rounded bg-green-600 text-white btn-no-outline" onClick={async () => {
+                                const d = whitelistInput.trim()
+                                if (!d) return
+                                await addWhitelist(d)
+                                setWhitelist(await getWhitelist())
+                                setWhitelistInput('')
+                            }}>Add</button>
+                        </div>
+                        <div className="space-y-2">
+                            {whitelist.length === 0 && <div className="text-sm text-gray-500">No whitelist domains yet.</div>}
+                            {whitelist.map(w => (
+                                <div key={w} className="p-3 border-l-4 border-green-400 bg-green-50 dark:bg-green-900/30 rounded flex items-center justify-between">
+                                    <div>
+                                        <div className="font-medium">{w}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button className="px-3 py-1 rounded border text-sm" onClick={async () => { await removeWhitelist(w); setWhitelist(await getWhitelist()) }}>Remove</button>
+                                    </div>
                                 </div>
-                            </motion.nav>
-                        )}
-                    </AnimatePresence>
-                </div>
-            </motion.header>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
-            {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                    {/* Sidebar */}
-                    <div className="lg:col-span-1">
-                        <div className="space-y-6">
-                            {/* Quick Actions */}
-                            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => batchSetLimit(15)}
-                                        className="w-full px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded-lg font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors duration-200 text-left"
-                                    >
-                                        Set 15m for selected
-                                    </button>
-                                    <button
-                                        onClick={() => batchSetLimit(30)}
-                                        className="w-full px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded-lg font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors duration-200 text-left"
-                                    >
-                                        Set 30m for selected
-                                    </button>
+                { /* Categories panel */}
+                {activeTab === 'categories' && (
+                    <div className="mb-6">
+                        <h3 className="text-sm font-semibold mb-2">Categories</h3>
+                        <div className="mb-3 flex gap-2">
+                            <input className="sf-input" placeholder="New category name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+                            <button className="px-3 py-2 rounded bg-indigo-600 text-white btn-no-outline" onClick={async () => {
+                                const n = newCategoryName.trim()
+                                if (!n) return
+                                await addCategory(n)
+                                setCategoriesCustom(await getCategoriesList())
+                                setNewCategoryName('')
+                            }}>Create</button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {[...knownCategories(), ...categoriesCustom.map(c => c.name)].map(cn => (
+                                <div key={cn} className="p-3 border rounded">
+                                    <div className="flex items-center justify-between">
+                                        <div className="font-medium">{cn}</div>
+                                        <div className="text-xs muted-small">{cn === 'social' ? 'color: purple' : ''}</div>
+                                    </div>
+                                    <div className="mt-2 text-xs muted-small">Assign domains to this category or view assigned domains.</div>
+                                    <div className="mt-3 flex gap-2">
+                                        <input className="sf-input flex-1" placeholder="domain.com" value={assignDomainInput} onChange={(e) => setAssignDomainInput(e.target.value)} />
+                                        <button className="px-3 py-1 rounded bg-indigo-600 text-white" onClick={async () => { if (!assignDomainInput) return; await assignDomainToCategory(assignDomainInput.trim(), cn); setAssignDomainInput(''); setData(await getAll()); }}>{'Assign'}</button>
+                                    </div>
+                                    <div className="mt-3">
+                                        <button className="text-sm text-gray-500" onClick={() => setSelectedCategory(cn)}>View assigned domains</button>
+                                    </div>
                                 </div>
-                            </div>
+                            ))}
+                        </div>
 
-                            {/* Category Defaults */}
-                            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Category Defaults</h3>
-                                <div className="space-y-4">
-                                    {knownCategories().map((c) => (
-                                        <CategoryDefault key={c} category={c} />
+                        {selectedCategory && (
+                            <div className="mt-4">
+                                <h4 className="text-sm font-semibold">Domains in {selectedCategory}</h4>
+                                <div className="space-y-2 mt-2">
+                                    {categoryDomains.length === 0 && <div className="text-sm text-gray-500">No domains assigned.</div>}
+                                    {categoryDomains.map(d => (
+                                        <div key={d.domain} className="p-2 border rounded flex items-center justify-between">
+                                            <div>{d.domain}</div>
+                                            <div className="text-xs muted-small">{formatUsage(d.usage)}</div>
+                                        </div>
                                     ))}
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
+                )}
 
-                    {/* Main Content Area */}
-                    <div className="lg:col-span-3">
-                        <div className="space-y-6">
-                            {/* Search and Add Domain */}
-                            {activeTab === 'domains' && (
-                                <>
-                                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="md:col-span-2">
-                                                <input
-                                                    placeholder="Search domains..."
-                                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                                    value={query}
-                                                    onChange={(e) => setQuery(e.target.value)}
-                                                />
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                                    placeholder="domain.com"
-                                                    value={domainInput}
-                                                    onChange={(e) => setDomainInput(e.target.value)}
-                                                />
-                                                <input
-                                                    className="w-20 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                                    placeholder="min"
-                                                    value={limitInput}
-                                                    onChange={(e) => setLimitInput(e.target.value)}
-                                                    type="number"
-                                                />
-                                                <button
-                                                    onClick={addLimit}
-                                                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg"
-                                                >
-                                                    Add
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Domains Table */}
-                                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full">
-                                                <thead className="bg-gray-50 dark:bg-gray-700/50">
-                                                    <tr>
-                                                        <th className="w-12 px-4 py-4"></th>
-                                                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Domain</th>
-                                                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Usage</th>
-                                                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Limit</th>
-                                                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                                    {domains.length === 0 ? (
-                                                        <tr>
-                                                            <td colSpan="5" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                                                                No domains tracked yet. Add your first domain to get started.
-                                                            </td>
-                                                        </tr>
-                                                    ) : (
-                                                        domains.map((d) => (
-                                                            <motion.tr
-                                                                key={d}
-                                                                initial={{ opacity: 0 }}
-                                                                animate={{ opacity: 1 }}
-                                                                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
-                                                            >
-                                                                <td className="px-4 py-4">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={!!selected[d]}
-                                                                        onChange={(e) => setSelected(s => ({ ...s, [d]: e.target.checked }))}
-                                                                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                                                                    />
-                                                                </td>
-                                                                <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{d}</td>
-                                                                <td className="px-4 py-4">
-                                                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${(data.usage[d] || 0) > (data.limits[d] || 0) * 60
-                                                                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                                                                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                                        }`}>
-                                                                        {formatUsage(data.usage[d])}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-4 py-4">
-                                                                    <span className="font-semibold text-gray-900 dark:text-white">
-                                                                        {data.limits[d] ? `${data.limits[d]} min` : '—'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-4 py-4">
-                                                                    <div className="flex gap-2">
-                                                                        <button
-                                                                            onClick={() => remove(d)}
-                                                                            className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
-                                                                            title="Remove limit"
-                                                                        >
-                                                                            <TrashIcon className="w-4 h-4" />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => toggleBlocked(d)}
-                                                                            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200 ${data.blocked[d]
-                                                                                ? 'bg-green-600 hover:bg-green-700 text-white'
-                                                                                : 'bg-red-600 hover:bg-red-700 text-white'
-                                                                                }`}
-                                                                        >
-                                                                            {data.blocked[d] ? 'Unblock' : 'Block'}
-                                                                        </button>
-                                                                    </div>
-                                                                </td>
-                                                            </motion.tr>
-                                                        ))
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-
-                            {/* Schedules Section */}
-                            <div className="space-y-6">
-                                <ScheduleForm onAdd={async () => { const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} }) }} />
-                                <ScheduleList refreshKey={Math.random()} />
-                            </div>
-
-                            {/* Social Media Tab */}
-                            {activeTab === 'social' && (
-                                <div className="space-y-6">
-                                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-                                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Social Media Management</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Category-wide Limit (minutes)
-                                                </label>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                                        value={socialCatLimit}
-                                                        onChange={(e) => setSocialCatLimit(e.target.value)}
-                                                        placeholder="e.g. 30"
-                                                        type="number"
-                                                    />
-                                                    <button
-                                                        onClick={async () => {
-                                                            const mins = parseInt(socialCatLimit, 10)
-                                                            if (isNaN(mins)) return
-                                                            const s = await getStorage(['categoryDefaults'])
-                                                            const defs = s.categoryDefaults || {}
-                                                            defs.social = mins
-                                                            await setStorage({ categoryDefaults: defs })
-                                                            const all = await getAll(); setData({ limits: all.limits || {}, blocked: all.blocked || {}, usage: all.usage || {} })
-                                                        }}
-                                                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors duration-200"
-                                                    >
-                                                        Save
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                                        <div className="p-6">
-                                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tracked Social Domains</h4>
-                                            <div className="space-y-4">
-                                                {socialList.length === 0 ? (
-                                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                                        No social domains tracked yet.
-                                                    </div>
-                                                ) : (
-                                                    socialList.map((s) => (
-                                                        <motion.div
-                                                            key={s.domain}
-                                                            initial={{ opacity: 0, y: 10 }}
-                                                            animate={{ opacity: 1, y: 0 }}
-                                                            className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
-                                                        >
-                                                            <div className="flex-1">
-                                                                <div className="font-medium text-gray-900 dark:text-white">{s.domain}</div>
-                                                                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                                                    Last 7 days: <strong>{s.minutes}m</strong> • Avg/day: <strong>{s.avg}m</strong>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={() => blockDomain(s.domain)}
-                                                                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200"
-                                                                >
-                                                                    Block
-                                                                </button>
-                                                            </div>
-                                                        </motion.div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                    <input className="sf-input col-span-1 sm:col-span-2" placeholder="domain.com" value={domainInput} onChange={(e) => setDomainInput(e.target.value)} />
+                    <div className="flex gap-2">
+                        <input className="sf-input flex-1" placeholder="minutes" value={limitInput} onChange={(e) => setLimitInput(e.target.value)} />
+                        <button className="px-3 py-2 rounded bg-indigo-600 text-white btn-no-outline" onClick={addLimit}>Add</button>
                     </div>
                 </div>
-            </main>
+
+                <div className="mb-3 flex items-center gap-3 flex-wrap">
+                    <button className="px-3 py-2 rounded bg-indigo-500 text-white btn-no-outline" onClick={() => batchSetLimit(15)}>Set 15m for selected</button>
+                    <button className="px-3 py-2 rounded bg-indigo-500 text-white btn-no-outline" onClick={() => batchSetLimit(30)}>Set 30m for selected</button>
+                </div>
+
+                <div className="overflow-auto scrollable">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="text-sm text-gray-500">
+                                <th className="py-2 w-8"></th>
+                                <th className="py-2">Domain</th>
+                                <th className="py-2">Usage</th>
+                                <th className="py-2">Limit</th>
+                                <th className="py-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {domains.length === 0 && (
+                                <tr><td className="py-4" colSpan="5">No domains tracked yet.</td></tr>
+                            )}
+                            {domains.map((d) => (
+                                <tr key={d} className="border-t">
+                                    <td className="py-2 align-top"><input type="checkbox" checked={!!selected[d]} onChange={(e) => setSelected(s => ({ ...s, [d]: e.target.checked }))} aria-label={`Select ${d}`} /></td>
+                                    <td className="py-2 align-top break-words">{d}</td>
+                                    <td className="py-2 align-top">{formatUsage(data.usage[d])}</td>
+                                    <td className="py-2 align-top">{data.limits[d] ? `${data.limits[d]} min` : '—'}</td>
+                                    <td className="py-2 align-top">
+                                        <button className="mr-2 px-2 py-1 rounded border text-sm" onClick={() => remove(d)} aria-label={`Remove limit for ${d}`}><TrashIcon className="w-4 h-4 inline-block" /> Remove</button>
+                                        <button className="px-2 py-1 rounded bg-red-600 text-white text-sm" onClick={() => toggleBlocked(d)}>{data.blocked[d] ? 'Unblock' : 'Block'}</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </motion.div>
         </div>
     )
 }

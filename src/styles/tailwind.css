@@ -187,6 +187,53 @@ body {
   align-items: center;
   justify-content: space-between;
 }
+
+/* Options header responsive helpers */
+.header-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.header-controls .tabs {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.header-controls .tabs button {
+  padding: 0.35rem 0.6rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.header-controls .tabs button.bg-active {
+  background: var(--accent);
+  color: white;
+}
+.header-controls .search-input {
+  min-width: 160px;
+  max-width: 420px;
+  flex: 1 1 220px;
+}
+
+@media (max-width: 640px) {
+  .header-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .header-controls .search-input {
+    width: 100%;
+  }
+}
+
+/* Prevent long domains from breaking layout */
+.break-words {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 .popup-main {
   display: grid;
   grid-template-columns: 1fr;
