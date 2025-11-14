@@ -15,9 +15,10 @@ function formatSeconds(s) {
 }
 
 function ProgressBar({ value = 0 }) {
+    const pct = Math.min(100, Math.max(0, value))
     return (
-        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div className="bg-gradient-to-r from-indigo-500 to-pink-500 h-2" style={{ width: `${Math.min(100, value)}%` }} />
+        <div className="sf-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="sf-progress-bar" style={{ width: `${pct}%` }} />
         </div>
     )
 }
@@ -83,8 +84,8 @@ export default function Popup() {
                 setStreaks(s)
                 try {
                     const preds = await getPredictedDistractions()
-                    setTopDomains(preds.slice(0,6))
-                } catch(e) {}
+                    setTopDomains(preds.slice(0, 6))
+                } catch (e) { }
             } catch (e) { }
         })()
     }, [])
@@ -109,17 +110,23 @@ export default function Popup() {
         })
     }
 
-    function toggleTheme() {
+    async function toggleTheme() {
         // cycle: auto -> dark -> light -> auto
         const next = theme === 'auto' ? 'dark' : theme === 'dark' ? 'light' : 'auto'
         setTheme(next)
-        setStorage({ theme: next })
+        try {
+            await setStorage({ theme: next })
+        } catch (e) { }
         if (next === 'auto') {
             const isDark = sysPref.current ? sysPref.current.matches : false
             document.documentElement.classList.toggle('dark', isDark)
         } else {
             document.documentElement.classList.toggle('dark', next === 'dark')
         }
+        try {
+            // notify other extension pages to update immediately
+            chrome.runtime.sendMessage({ action: 'theme-changed', theme: next })
+        } catch (e) { }
     }
 
     function percentUsed() {
@@ -164,131 +171,97 @@ export default function Popup() {
     return (
         <div className="popup-root font-sans">
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="popup-card">
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
+                <header className="popup-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <img src={fav || '/icon128.png'} alt={`${domain || 'site'} favicon`} className="w-8 h-8 rounded-sm" />
-                        <div>
-                            <div className="text-sm text-gray-500 dark:text-gray-300">Active</div>
+                        <div style={{ minWidth: 0 }}>
+                            <div className="muted-small">Active</div>
                             <div className="text-lg font-semibold truncate">{domain || '—'}</div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <motion.button aria-label="Theme toggle" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }} className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 sf-transition focus-ring" onClick={toggleTheme}>
-                            {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : theme === 'light' ? <MoonIcon className="w-5 h-5" /> : <Cog6ToothIcon className="w-5 h-5" />}
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        <motion.button aria-label="Theme toggle" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }} className="p-1.5 w-8 h-8 rounded-md sf-transition focus-ring btn-no-outline" onClick={toggleTheme}>
+                            {theme === 'dark' ? <SunIcon className="w-4 h-4 icon-accent" /> : theme === 'light' ? <MoonIcon className="w-4 h-4 icon-muted" /> : <Cog6ToothIcon className="w-4 h-4 icon-muted" />}
                         </motion.button>
-                        <a className="text-sm text-gray-500 dark:text-gray-300 focus-ring" href="/options.html">Settings</a>
+                        <a className="text-sm muted-small btn-no-outline" href="/options.html">Settings</a>
                     </div>
-                </div>
+                </header>
 
-                <div className="mb-3">
-                    <div className="flex items-end justify-between gap-4">
-                        <div>
-                            <div className="text-xs text-gray-500">Today</div>
-                            <div className="text-2xl font-bold" aria-live="polite">{formatSeconds(usage)}</div>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-xs text-gray-500">Limit</div>
-                            <div className="text-lg font-semibold">{limit ? `${limit} min` : 'None'}</div>
-                        </div>
-                    </div>
-                    <div className="mt-3">
-                        <ProgressBar value={percentUsed()} />
-                        <div className="text-xs text-gray-500 mt-2" aria-hidden={false}>{percentUsed()}% used</div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div>
-                        <label className="text-xs text-gray-500">Quick set limit</label>
-                        <div className="flex gap-2 mt-2">
-                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-indigo-600 text-white sf-transition focus-ring" onClick={() => applyLimit(10)}>10m</motion.button>
-                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-indigo-600 text-white sf-transition focus-ring" onClick={() => applyLimit(25)}>25m</motion.button>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-xs text-gray-500">Actions</label>
-                        <div className="flex gap-2 mt-2">
-                            {!blocked ? (
-                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-red-600 text-white sf-transition focus-ring" onClick={blockNow}><ShieldExclamationIcon className="w-4 h-4 inline-block mr-2" />Block</motion.button>
-                            ) : (
-                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 px-3 py-2 rounded bg-green-600 text-white sf-transition focus-ring" onClick={unblock}>Unblock</motion.button>
-                            )}
-                        </div>
-                        <div className="mt-2 flex gap-2">
-                            <button className="sf-btn-ghost" onClick={() => startFocus(25)}>Focus 25m</button>
-                            <button className="sf-btn-ghost" onClick={() => startFocus(50)}>Focus 50m</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mt-2">
-                    <div className="text-xs text-gray-500 mb-2">Last 7 days (minutes)</div>
-                    <div className="flex items-end gap-2 h-20">
-                        {trend.map((v, i) => (
-                            <motion.div key={i} initial={{ height: 2 }} animate={{ height: `${Math.max(4, (v / (Math.max(...trend) || 1)) * 80)}%` }} className="w-full bg-indigo-200 dark:bg-indigo-800 rounded-t" style={{ height: `${Math.max(4, (v / (Math.max(...trend) || 1)) * 100)}%` }} title={`${v}m`} />
-                        ))}
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                        <button className="px-3 py-2 rounded border" onClick={exportCSV}>Export CSV</button>
-                        <button className="px-3 py-2 rounded border" onClick={() => snooze(5)}>Snooze 5m</button>
-                        {suggestion ? <button className="px-3 py-2 rounded bg-yellow-500 text-white" onClick={() => applyLimit(Math.max(10, Math.floor(usage / 60)))}>Suggest Limit</button> : null}
-                    </div>
-                    <div className="mt-2">
-                        <div className="text-xs text-gray-500 mb-1">Prediction</div>
-                        <div className="flex items-center justify-between">
-                            <div className="text-sm text-gray-700 dark:text-gray-300">Predicted distractions</div>
-                            <div className="text-xs text-gray-500">Try pre-block</div>
-                        </div>
-                        <div className="mt-2 flex gap-2">
-                            {topDomains.map(t => (
-                                <button key={t.domain} className="px-2 py-1 rounded border text-sm truncate" onClick={() => chrome.runtime.sendMessage({ action: 'block-now', domain: t.domain })}>{t.domain}</button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="mt-4 bg-gray-50 dark:bg-gray-800 p-3 rounded" role="region" aria-labelledby="analytics-heading">
-                    <div className="flex items-center justify-between mb-2">
-                        <div id="analytics-heading" className="text-sm font-semibold">Analytics</div>
-                        <div className="text-xs text-gray-500">Streaks: <span className="font-semibold">{streaks.current}</span> / Best <span className="font-semibold">{streaks.best}</span></div>
-                    </div>
-                    <div className="flex gap-3">
-                        <div className="flex-1">
-                            <div className="text-xs text-gray-500 mb-1">By Category (minutes)</div>
-                            <div className="flex gap-2 items-end h-20">
-                                {Object.keys(categoryAgg).length === 0 && <div className="text-xs text-gray-500">No data</div>}
-                                {Object.entries(categoryAgg).map(([k, v]) => (
-                                    <div key={k} className="flex-1 text-center">
-                                        <div className="h-full flex items-end">
-                                            <div className="mx-auto bg-indigo-400 rounded-t" style={{ height: `${Math.max(4, Math.min(100, Math.round(v / 60)))}%`, width: '60%' }} />
-                                        </div>
-                                        <div className="text-xs mt-1">{k}</div>
-                                    </div>
-                                ))}
+                <main className="popup-main mt-3">
+                    <section>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '0.6rem' }}>
+                            <div>
+                                <div className="muted-small">Today</div>
+                                <div className="text-2xl font-bold" aria-live="polite">{formatSeconds(usage)}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <div className="muted-small">Limit</div>
+                                <div className="text-lg font-semibold">{limit ? `${limit} min` : 'None'}</div>
                             </div>
                         </div>
-                        <div className="w-36">
-                            <div className="text-xs text-gray-500 mb-1">Top Sites</div>
-                            <ul className="text-sm">
-                                {topDomains.map(t => (
-                                    <li key={t.domain} className="truncate">{t.domain} — {Math.round(t.seconds / 60)}m</li>
-                                ))}
-                            </ul>
+                        <div className="mt-3">
+                            <ProgressBar value={percentUsed()} />
+                            <div className="muted-small mt-2">{percentUsed()}% used</div>
                         </div>
-                    </div>
-                </div>
-                    <div className="mt-3 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div>
-                            <div className="text-xs text-gray-500">Badges</div>
-                            <Badges />
+
+                        <div className="mt-3 popup-actions">
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="sf-btn-primary flex-1" onClick={() => applyLimit(10)}>10m</motion.button>
+                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="sf-btn-primary flex-1" onClick={() => applyLimit(25)}>25m</motion.button>
+                            {!blocked ? (
+                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="sf-btn-primary flex-1" onClick={blockNow}><ShieldExclamationIcon className="w-4 h-4 inline-block mr-2" />Block</motion.button>
+                            ) : (
+                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="sf-btn-primary flex-1" onClick={unblock}>Unblock</motion.button>
+                            )}
                         </div>
-                        <div>
-                            <div className="text-xs text-gray-500">Streaks</div>
-                                <div className="mt-1"><Sparkline data={trend.map(x => Math.round(x/60))} /></div>
+
+                        <div className="mt-3" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button className="sf-btn-ghost" onClick={() => startFocus(25)}>Focus 25m</button>
+                            <button className="sf-btn-ghost" onClick={() => startFocus(50)}>Focus 50m</button>
+                            <button className="sf-btn-ghost" onClick={() => snooze(5)}>Snooze</button>
+                            <button className="sf-btn-ghost" onClick={exportCSV}>Export</button>
                         </div>
-                    </div>
-                </div>
+
+                        <div className="mt-3">
+                            <div className="muted-small mb-1">Last 7 days</div>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'end', height: 64 }}>
+                                {trend.map((v, i) => {
+                                    const max = Math.max(...trend) || 1
+                                    const h = Math.max(6, Math.round((v / max) * 56))
+                                    return <div key={i} title={`${v}m`} style={{ flex: 1, height: `${h}px`, background: 'linear-gradient(180deg,var(--accent),#ec4899)', borderTopLeftRadius: 6, borderTopRightRadius: 6 }} />
+                                })}
+                            </div>
+                        </div>
+                    </section>
+
+                    <aside>
+                        <div className="popup-analytics">
+                            <div className="card" style={{ padding: '0.6rem' }}>
+                                <div className="muted-small">Prediction</div>
+                                <div className="mt-2" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                    {topDomains.length === 0 && <div className="muted-small">No predictions</div>}
+                                    {topDomains.map(t => (
+                                        <button key={t.domain} className="chip" onClick={() => chrome.runtime.sendMessage({ action: 'block-now', domain: t.domain })}>{t.domain}</button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="card" style={{ padding: '0.6rem' }}>
+                                <div className="muted-small">Analytics</div>
+                                <div className="mt-2 muted-small">Streaks: <strong>{streaks.current}</strong> / Best <strong>{streaks.best}</strong></div>
+                                <div className="mt-2">
+                                    <div className="muted-small mb-1">Top Sites</div>
+                                    <ul style={{ paddingLeft: 0, margin: 0, listStyle: 'none', fontSize: '0.9rem' }}>
+                                        {topDomains.map(t => (<li key={t.domain} style={{ marginBottom: 6 }}><strong style={{ color: 'var(--text)' }}>{t.domain}</strong><div className="muted-small">{t.minutes ? `${t.minutes}m` : ''}</div></li>))}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+                </main>
+                <footer style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+                    <div className="muted-small">SiteFuse — Focus made simple</div>
+                    <div className="muted-small">v1.0</div>
+                </footer>
             </motion.div>
         </div>
     )
@@ -301,6 +274,6 @@ export default function Popup() {
             if (res && res.ok) {
                 // optimistic UI: maybe show a small toast in the popup (omitted)
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 }

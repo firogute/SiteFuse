@@ -3,7 +3,7 @@ const CATEGORY_RULES = [
   {
     name: "social",
     pattern:
-      /(^|\.)facebook\.com$|(^|\.)twitter\.com$|(^|\.)instagram\.com$|(^|\.)tiktok\.com$|(^|\.)reddit\.com$/i,
+      /(^|\.)facebook\.com$|(^|\.)twitter\.com$|(^|\.)instagram\.com$|(^|\.)tiktok\.com$|(^|\.)reddit\.com$|(^|\.)linkedin\.com$|(^|\.)pinterest\.com$|(^|\.)snapchat\.com$/i,
     default: 30,
   },
   {

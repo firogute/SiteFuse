@@ -239,6 +239,10 @@ async function incrementDomainUsage(domain, seconds = 60) {
         } catch (e) {}
       }
     });
+    try {
+      // clear progress notification when fully blocked
+      chrome.notifications.clear(`sitefuse_progress_${domain}`);
+    } catch (e) {}
     return;
   }
   await setStorage({ usage });
@@ -247,6 +251,22 @@ async function incrementDomainUsage(domain, seconds = 60) {
   try {
     if (limitMins) {
       const pct = (usage[domain] / (limitMins * 60)) * 100;
+      // Show a live progress notification for this domain when above 10%
+      try {
+        if (pct >= 10) {
+          const progressId = `sitefuse_progress_${domain}`;
+          chrome.notifications.create(progressId, {
+            type: "progress",
+            iconUrl: "/icon128.png",
+            title: `${domain} usage`,
+            message: `${Math.round(pct)}% of limit used`,
+            progress: Math.min(100, Math.round(pct)),
+            buttons: [{ title: "Snooze 5m" }, { title: "Extend 10m" }],
+          });
+        }
+      } catch (e) {}
+
+      // One-off threshold nudges still useful — maintain previous behavior for 50/80
       const thresholds = [50, 80];
       for (const thr of thresholds) {
         const key = `notif_${thr}_${domain}`;
@@ -486,6 +506,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 if (chrome.notifications) {
   chrome.notifications.onButtonClicked.addListener(async (notifId, btnIdx) => {
     try {
+      // support progress notifications with two quick actions
+      if (notifId.startsWith("sitefuse_progress_")) {
+        const domain = notifId.slice("sitefuse_progress_".length);
+        if (btnIdx === 0) {
+          // Snooze for 5 minutes
+          const snoozeMinutes = 5;
+          const data = await getStorage(["blocked", "snoozes"]);
+          const snoozes = data.snoozes || {};
+          snoozes[domain] = Date.now() + snoozeMinutes * 60 * 1000;
+          await setStorage({ snoozes });
+          chrome.tabs.query({}, (tabs) => {
+            for (const t of tabs) {
+              try {
+                const d = domainFromUrl(t.url);
+                if (d === domain)
+                  chrome.tabs.sendMessage(
+                    t.id,
+                    { action: "snoozed", until: snoozes[domain] },
+                    () => {}
+                  );
+              } catch (e) {}
+            }
+          });
+          return;
+        }
+        if (btnIdx === 1) {
+          // Extend the limit by 10 minutes
+          const minutes = 10;
+          const data = await getStorage(["limits"]);
+          const limits = data.limits || {};
+          limits[domain] = (limits[domain] || 0) + minutes;
+          await setStorage({ limits });
+          return;
+        }
+        return;
+      }
       // notifId format: sitefuse_<threshold>_<domain>
       if (!notifId.startsWith("sitefuse_")) return;
       const parts = notifId.split("_");

@@ -196,8 +196,11 @@ export async function getTopDomains(limit = 10) {
 }
 
 // Predict potential distraction domains by comparing recent 7-day usage with the prior 7 days.
-export async function getPredictedDistractions(thresholdRatio = 0.5, limit = 10) {
-  const all = await getStorage(['usageHistory', 'usage']);
+export async function getPredictedDistractions(
+  thresholdRatio = 0.5,
+  limit = 10
+) {
+  const all = await getStorage(["usageHistory", "usage"]);
   const usageHistory = all.usageHistory || {};
   const out = [];
   const now = Date.now();
@@ -214,12 +217,17 @@ export async function getPredictedDistractions(thresholdRatio = 0.5, limit = 10)
     const recentMins = recent / 60;
     const priorMins = prior / 60;
     const ratio = prior > 0 ? (recent - prior) / prior : recent > 0 ? 1 : 0;
-    if ((prior > 0 && ratio >= thresholdRatio) || (prior === 0 && recentMins >= 30)) {
+    if (
+      (prior > 0 && ratio >= thresholdRatio) ||
+      (prior === 0 && recentMins >= 30)
+    ) {
       out.push({ domain, recent: recentMins, prior: priorMins, score: ratio });
     }
   }
   out.sort((a, b) => b.recent - a.recent);
-  return out.slice(0, limit).map((o) => ({ domain: o.domain, minutes: Math.round(o.recent) }));
+  return out
+    .slice(0, limit)
+    .map((o) => ({ domain: o.domain, minutes: Math.round(o.recent) }));
 }
 
 // Gamification helpers: badges and streak calendar
@@ -252,6 +260,69 @@ export async function getStreakCalendar(days = 30) {
       date: key,
       success: !!daily[key] && Object.values(daily[key]).every(Boolean),
     });
+  }
+  return out;
+}
+
+// Whitelist helpers: simple array of domains that are never blocked
+export async function getWhitelist() {
+  const r = await getStorage(["whitelist"]);
+  return r.whitelist || [];
+}
+
+export async function addWhitelist(domain) {
+  const r = await getStorage(["whitelist"]);
+  const list = r.whitelist || [];
+  if (!list.includes(domain)) list.push(domain);
+  await setStorage({ whitelist: list });
+}
+
+export async function removeWhitelist(domain) {
+  const r = await getStorage(["whitelist"]);
+  const list = r.whitelist || [];
+  const out = list.filter((d) => d !== domain);
+  await setStorage({ whitelist: out });
+}
+
+// Custom categories management. `categoriesList` stores objects { name, color? }
+export async function getCategoriesList() {
+  const r = await getStorage(["categoriesList"]);
+  return r.categoriesList || [];
+}
+
+export async function addCategory(name, meta = {}) {
+  const r = await getStorage(["categoriesList"]);
+  const list = r.categoriesList || [];
+  if (!list.find((c) => c.name === name)) list.push({ name, ...meta });
+  await setStorage({ categoriesList: list });
+}
+
+export async function removeCategory(name) {
+  const r = await getStorage(["categoriesList", "categories"]);
+  const list = r.categoriesList || [];
+  const mapping = r.categories || {};
+  const out = list.filter((c) => c.name !== name);
+  // reassign domains in that category to 'other'
+  for (const d of Object.keys(mapping)) {
+    if (mapping[d] === name) mapping[d] = "other";
+  }
+  await setStorage({ categoriesList: out, categories: mapping });
+}
+
+export async function assignDomainToCategory(domain, category) {
+  const r = await getStorage(["categories"]);
+  const mapping = r.categories || {};
+  mapping[domain] = category;
+  await setStorage({ categories: mapping });
+}
+
+export async function getDomainsForCategory(category) {
+  const r = await getStorage(["categories", "usage"]);
+  const mapping = r.categories || {};
+  const usage = r.usage || {};
+  const out = [];
+  for (const d of Object.keys(mapping)) {
+    if (mapping[d] === category) out.push({ domain: d, usage: usage[d] || 0 });
   }
   return out;
 }

@@ -7,9 +7,32 @@
   --brand: #2563eb;
 }
 
+/* Theme tokens for light/dark */
+:root {
+  --bg: #f9fafb;
+  --panel: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --accent: #7c3aed; /* purple-600 */
+  --success: #10b981;
+  --danger: #ef4444;
+}
+:root.dark {
+  --bg: #0b1220;
+  --panel: #0f1724;
+  --text: #e6eef8;
+  --muted: #9ca3af;
+  --accent: #8b5cf6;
+  --success: #34d399;
+  --danger: #f87171;
+}
+
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-800 antialiased;
+    background-color: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
       Roboto, "Helvetica Neue", Arial;
   }
@@ -17,13 +40,28 @@
   h2,
   h3,
   h4 {
-    @apply text-gray-900;
+    color: var(--text);
   }
+}
+
+/* Ensure full-height pages and sensible scrolling to avoid hidden content */
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  overflow-y: auto;
+  /* -webkit-overflow-scrolling: touch; */
 }
 
 @layer components {
   .card {
-    @apply bg-white rounded-xl shadow-lg p-6;
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(2, 6, 23, 0.08);
+    padding: 1.25rem;
   }
 }
 
@@ -49,10 +87,10 @@
 
 /* Utility tweaks */
 .muted {
-  @apply text-gray-500;
+  color: var(--muted);
 }
 .small {
-  @apply text-sm;
+  font-size: 0.875rem;
 }
 
 /* Accessibility and motion preferences */
@@ -78,5 +116,177 @@
 }
 
 .focus-ring {
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.14);
+}
+
+/* Small utility to remove native focus outline for icon buttons while keeping an accessible focus style optional */
+.btn-no-outline {
+  outline: none;
+}
+.btn-no-outline:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
+}
+
+/* Generic app container and panel used across popup/options/blocked for consistent layout */
+.app-root {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+.panel {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.06);
+}
+
+/* Buttons */
+.sf-btn-primary {
+  background: linear-gradient(90deg, var(--accent), #ec4899);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.sf-btn-ghost {
+  background: transparent;
+  color: var(--text);
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+/* Popup containers */
+.popup-root {
+  width: 100%;
+  max-width: 420px;
+  margin: 0.25rem auto;
+  box-sizing: border-box;
+}
+.popup-card {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 0.75rem;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+/* Make popup constrained to viewport height so nothing gets clipped; allow inner scroll */
+.popup-root {
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+}
+
+/* Responsive layout helpers */
+.popup-header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.popup-main {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+.popup-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.popup-analytics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+@media (min-width: 520px) {
+  .popup-main {
+    grid-template-columns: 1fr 220px;
+  }
+  .popup-analytics {
+    grid-template-columns: 1fr 160px;
+  }
+}
+
+/* Compact utility */
+.muted-small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.chip {
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: rgba(124, 58, 237, 0.08);
+  color: var(--accent);
+}
+
+/* Progress styling */
+.sf-progress {
+  background: rgba(148, 163, 184, 0.12);
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.sf-progress > .sf-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #ec4899);
+}
+
+/* Icon colors */
+.icon-muted {
+  color: var(--muted);
+}
+.icon-accent {
+  color: var(--accent);
+}
+
+/* Small responsive tweaks */
+@media (max-width: 420px) {
+  .popup-root {
+    max-width: 100%;
+    padding: 0.5rem;
+  }
+  .popup-card {
+    padding: 0.75rem;
+  }
+}
+
+/* Additional theme-aware inputs, card elevation, and scroll helpers */
+.sf-input {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid rgba(2, 6, 23, 0.06);
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.sf-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.08);
+  border-color: var(--accent);
+}
+
+.card-elevate {
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms ease;
+}
+.card-elevate:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.12);
+}
+
+.scrollable {
+  overflow: auto;
+  /* use viewport-aware max height so lists/tables never overflow off-screen */
+  max-height: calc(100vh - 220px);
+}
+
+.hint {
+  font-size: 0.78rem;
+  color: var(--muted);
 }
