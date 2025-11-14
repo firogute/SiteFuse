@@ -65,34 +65,31 @@ async function incrementDomainUsage(domain, seconds = 60) {
     });
     return;
   }
-
   await setStorage({ usage });
-  // Send a notification when hitting 80% of limit
+
+  // Send notifications at thresholds: 50%, 80%, 100% (100% handled above)
   try {
-    const limitMins = limits[domain];
     if (limitMins) {
       const pct = (usage[domain] / (limitMins * 60)) * 100;
-      const notifKey = `notif_${domain}`;
-      const meta = await getStorage([notifKey]);
-      const sent = meta[notifKey];
-      if (pct >= 80 && !sent) {
-        try {
-          chrome.notifications.create(
-            `sitefuse_warn_${domain}`,
-            {
-              type: "basic",
-              iconUrl: "/icon128.png",
-              title: "SiteFuse: approaching limit",
-              message: `${domain} has used ${Math.round(
-                pct
-              )}% of its time limit.`,
-            },
-            () => {}
-          );
-        } catch (e) {}
-        const obj = {};
-        obj[notifKey] = true;
-        await setStorage(obj);
+      const thresholds = [50, 80];
+      for (const thr of thresholds) {
+        const key = `notif_${thr}_${domain}`;
+        const meta = await getStorage([key]);
+        const sent = meta[key];
+        if (pct >= thr && !sent) {
+          try {
+            chrome.notifications.create(`sitefuse_${thr}_${domain}`, {
+              type: 'basic',
+              iconUrl: '/icon128.png',
+              title: `SiteFuse: ${Math.round(pct)}% of limit reached`,
+              message: `${domain} has used ${Math.round(pct)}% of its time limit.`,
+              buttons: [{ title: 'Snooze 5m' }],
+            }, () => {});
+          } catch (e) {}
+          const obj = {};
+          obj[key] = true;
+          await setStorage(obj);
+        }
       }
     }
   } catch (e) {}
@@ -160,12 +157,32 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== "sitefuse_tick") return;
-  const domain = await getCurrentDomain();
-  if (!domain) return;
+  // Aggregate usage across open tabs (sums per-domain, respects multiple tabs)
   const d = await getStorage(["debug"]);
   const debug = !!d.debug;
   const seconds = debug ? 5 : 60;
-  await incrementDomainUsage(domain, seconds);
+  try {
+    chrome.tabs.query({}, async (tabs) => {
+      const counts = {};
+      for (const t of tabs) {
+        try {
+          if (!t.url) continue;
+          const dom = domainFromUrl(t.url);
+          if (!dom) continue;
+          counts[dom] = (counts[dom] || 0) + 1;
+        } catch (e) {}
+      }
+      // For each domain, increment usage by seconds * count
+      for (const dom of Object.keys(counts)) {
+        // check if domain is snoozed or blocked with until in the past
+        await incrementDomainUsage(dom, seconds * counts[dom]);
+      }
+    });
+  } catch (e) {
+    // fallback: increment current domain only
+    const domain = await getCurrentDomain();
+    if (domain) await incrementDomainUsage(domain, seconds);
+  }
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -197,6 +214,62 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       delete blocked[domain];
       await setStorage({ blocked });
       sendResponse({ ok: true });
+    })();
+    return true;
+  }
+});
+
+// Handle notification button clicks (snooze)
+if (chrome.notifications) {
+  chrome.notifications.onButtonClicked.addListener(async (notifId, btnIdx) => {
+    try {
+      // notifId format: sitefuse_<threshold>_<domain>
+      if (!notifId.startsWith('sitefuse_')) return;
+      const parts = notifId.split('_');
+      const domain = parts.slice(2).join('_');
+      // Snooze for 5 minutes
+      const snoozeMinutes = 5;
+      const data = await getStorage(['blocked', 'snoozes']);
+      const snoozes = data.snoozes || {};
+      snoozes[domain] = Date.now() + snoozeMinutes * 60 * 1000;
+      await setStorage({ snoozes });
+      // clear any immediate redirection for that domain by sending message to tabs
+      chrome.tabs.query({}, (tabs) => {
+        for (const t of tabs) {
+          try {
+            const d = domainFromUrl(t.url);
+            if (d === domain) chrome.tabs.sendMessage(t.id, { action: 'snoozed', until: snoozes[domain] }, () => {});
+          } catch (e) {}
+        }
+      });
+    } catch (e) {}
+  });
+}
+
+// Add message handlers for export and snooze via messages
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg || !msg.action) return;
+  if (msg.action === 'export-csv') {
+    (async () => {
+      try {
+        const { exportAllToCSV } = await import('../utils/storage.js');
+        const csv = await exportAllToCSV();
+        sendResponse({ ok: true, csv });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e) });
+      }
+    })();
+    return true;
+  }
+  if (msg.action === 'snooze') {
+    (async () => {
+      const domain = msg.domain;
+      const mins = msg.minutes || 5;
+      const data = await getStorage(['snoozes']);
+      const snoozes = data.snoozes || {};
+      snoozes[domain] = Date.now() + mins * 60 * 1000;
+      await setStorage({ snoozes });
+      sendResponse({ ok: true, until: snoozes[domain] });
     })();
     return true;
   }
