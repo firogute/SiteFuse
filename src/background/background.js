@@ -201,6 +201,42 @@ async function evaluateBadges() {
   }
 }
 
+// Auto-adjust limits based on recent trends (run daily)
+async function autoAdjustLimits() {
+  try {
+    const data = await getStorage(["limits", "usageHistory"]);
+    const limits = data.limits || {};
+    const usageHistory = data.usageHistory || {};
+    const updated = {};
+    for (const domain of Object.keys(usageHistory)) {
+      const items = usageHistory[domain] || [];
+      // compute daily totals over the last 7 days approximate from timestamps
+      // fallback: sum recent entries for a heuristic
+      const totalMinutes = Math.round(items.reduce((s, e) => s + (e.s || 0), 0) / 60);
+      const current = limits[domain] || 15;
+      // if user consistently exceeds limit, nudge down (stricter), else relax slightly
+      if (totalMinutes > current * 1.3) {
+        updated[domain] = Math.max(5, Math.round(current * 0.9));
+      } else if (totalMinutes < current * 0.5) {
+        updated[domain] = Math.min(240, Math.round(current * 1.1));
+      }
+    }
+    if (Object.keys(updated).length) {
+      // merge into limits and notify user of adjustments
+      for (const d of Object.keys(updated)) limits[d] = updated[d];
+      await setStorage({ limits });
+      try {
+        chrome.notifications.create("sitefuse_auto_adjust", {
+          type: "basic",
+          iconUrl: "/icon128.png",
+          title: "Smart Limits Updated",
+          message: "SiteFuse adjusted a few limits based on your recent trends.",
+        });
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+
 function getStorage(keys) {
   return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
 }
@@ -304,6 +340,43 @@ async function incrementDomainUsage(domain, seconds = 60, tabId = null) {
     return;
   }
   await setStorage({ usage });
+
+  // --- predictive suggestions & rapid-switch detection ---
+  try {
+    const mod = await import("../utils/categories.js");
+    const { predictDistraction, classifyUrlWithConfidence } = mod;
+    const recentActions = {};
+    try {
+      const meta = await getStorage([`tab_switches_${domain}`, `usageHistory`]);
+      recentActions.visitsLastHour = (meta[`tab_switches_${domain}`] || 0);
+      // compute total minutes today for domain
+      const usageHistory = (meta.usageHistory && meta.usageHistory[domain]) || [];
+      recentActions.totalTimeTodayMinutes = Math.round(
+        usageHistory.reduce((s, e) => s + (e.s || 0), 0) / 60
+      );
+      // simple rapid tab switches metric
+      recentActions.rapidTabSwitches = recentActions.visitsLastHour;
+    } catch (e) {}
+
+    const p = predictDistraction(domain, recentActions);
+    // if high probability of distraction but not yet blocked, suggest blocking
+    if (p >= 0.7) {
+      const key = `predicted_${domain}`;
+      const prev = await getStorage([key]);
+      if (!prev[key]) {
+        chrome.notifications.create(`sitefuse_predict_${domain}`, {
+          type: "basic",
+          iconUrl: "/icon128.png",
+          title: "Potential distraction detected",
+          message: `${domain} looks like it might become a distraction. Block for a focused session?`,
+          buttons: [{ title: "Block 30m" }, { title: "Remind later" }],
+        });
+        const o = {};
+        o[key] = true;
+        await setStorage(o);
+      }
+    }
+  } catch (e) {}
 
   // Send notifications at thresholds: 50%, 80%, 100% (100% handled above)
   try {
@@ -443,6 +516,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "sitefuse_daily") {
     try {
       await evaluateBadges();
+      // run auto adjustments to limits based on trends
+      try {
+        await autoAdjustLimits();
+      } catch (e) {}
     } catch (e) {}
 
     // Daily maintenance: record today's results and reset usage
