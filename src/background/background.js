@@ -256,6 +256,56 @@ async function autoAdjustLimits() {
   } catch (e) {}
 }
 
+// Create an updating countdown/progress notification for a domain for given milliseconds
+const _countdownTimers = {};
+function showCountdownNotification(domain, ms) {
+  try {
+    const id = `sitefuse_countdown_${domain}_${Date.now()}`;
+    const total = Math.max(1, ms);
+    let remaining = total;
+    const update = () => {
+      const pct = Math.max(0, Math.min(100, Math.round(((total - remaining) / total) * 100)));
+      try {
+        chrome.notifications.create(id, {
+          type: 'progress',
+          iconUrl: '/icon128.png',
+          title: `${domain} — closing soon`,
+          message: `${Math.ceil(remaining/1000)}s remaining`,
+          progress: pct,
+          buttons: [{ title: 'Snooze 5m' }, { title: 'Extend 10m' }]
+        });
+      } catch (e) {}
+    };
+    // initial
+    update();
+    const iv = setInterval(() => {
+      remaining -= 1000;
+      if (remaining <= 0) {
+        try { chrome.notifications.clear(id); } catch (e) {}
+        clearInterval(_countdownTimers[id]);
+        delete _countdownTimers[id];
+      } else {
+        try {
+          chrome.notifications.update(id, {
+            type: 'progress',
+            iconUrl: '/icon128.png',
+            title: `${domain} — closing soon`,
+            message: `${Math.ceil(remaining/1000)}s remaining`,
+            progress: Math.max(0, Math.min(100, Math.round(((total - remaining) / total) * 100)))
+          });
+        } catch (e) {}
+      }
+    }, 1000);
+    _countdownTimers[id] = iv;
+    // stop after total ms
+    setTimeout(() => {
+      try { chrome.notifications.clear(id); } catch (e) {}
+      clearInterval(_countdownTimers[id]);
+      delete _countdownTimers[id];
+    }, total + 2000);
+  } catch (e) {}
+}
+
 function getStorage(keys) {
   return new Promise((resolve) => chrome.storage.local.get(keys, resolve));
 }
@@ -340,16 +390,10 @@ async function incrementDomainUsage(domain, seconds = 60, tabId = null) {
       const key = `grace_notified_${domain}_${tabId || "legacy"}`;
       const prev = await getStorage([key]);
       if (!prev[key]) {
-        chrome.notifications.create(
-          `sitefuse_grace_${domain}_${tabId || "legacy"}`,
-          {
-            type: "basic",
-            iconUrl: "/icon128.png",
-            title: "Time's up",
-            message:
-              "Your time for this site is over. This tab will close in 1 minute.",
-          }
-        );
+        // show an animated countdown/progress notification for the grace period
+        try {
+          showCountdownNotification(domain, 60 * 1000);
+        } catch (e) {}
         const obj = {};
         obj[key] = true;
         await setStorage(obj);
