@@ -1,0 +1,37 @@
+# Ignore all .o files
+*.o
+
+# Ignore all .log files
+*.log
+
+# Ignore all files ending with ~ (backup files)
+*~
+
+# Ignore the 'build' directory and its contents
+build/
+
+# Ignore the 'temp' directory and its contents
+temp/
+
+# Ignore the 'node_modules' directory (common in JavaScript projects)
+node_modules/
+
+# Ignore specific files
+.DS_Store # macOS specific file
+Thumbs.db # Windows specific file
+.env # Environment variable files
+config.local.js # Local configuration files
+
+# Ignore files based on a pattern in a specific directory
+# For example, ignore all .tmp files in the 'data' directory
+data/*.tmp
+
+# Exclude a specific file from a previously ignored directory
+# For example, ignore the 'logs' directory but include 'logs/important.log'
+!logs/important.log
+logs/
+
+# Ignore all files in a directory except a specific type
+# For example, ignore everything in 'cache/' but include .txt files
+cache/*
+!cache/*.txt

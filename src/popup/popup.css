@@ -1,0 +1,37 @@
+.popup {
+  width: 300px;
+  padding: 12px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.popup h3 {
+  margin: 6px 0 12px;
+}
+.row {
+  margin: 6px 0;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.controls input {
+  flex: 1;
+  padding: 6px;
+}
+.controls button {
+  padding: 6px 10px;
+}
+.btn-block {
+  background: #e53e3e;
+  color: white;
+  border: none;
+}
+.btn-unblock {
+  background: #48bb78;
+  color: white;
+  border: none;
+}
+.footer {
+  margin-top: 12px;
+  font-size: 12px;
+}

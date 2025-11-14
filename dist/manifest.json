@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "SiteFuse",
+  "version": "1.0.0",
+  "description": "Track website usage time, set time limits and block sites.",
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon48.png"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "permissions": ["storage", "tabs", "alarms", "activeTab", "notifications"],
+  "host_permissions": ["<all_urls>"],
+  "web_accessible_resources": [{
+    "resources": ["blocked.html", "icon16.png", "icon32.png", "icon48.png", "icon128.png", "icon256.png", "icon512.png"],
+    "matches": ["<all_urls>"]
+  }]
+}
