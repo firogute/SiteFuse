@@ -381,3 +381,27 @@ export async function getAllGrace() {
   const r = await getStorage(["_legacy_grace"]);
   return r._legacy_grace || {};
 }
+
+// Simple virtual currency for gamification
+export async function getCoins() {
+  const r = await getStorage(["coins"]);
+  return r.coins || 0;
+}
+
+export async function addCoins(amount) {
+  const r = await getStorage(["coins"]);
+  const cur = r.coins || 0;
+  const next = cur + Number(amount || 0);
+  await setStorage({ coins: next });
+  return next;
+}
+
+export async function spendCoins(amount) {
+  const r = await getStorage(["coins"]);
+  const cur = r.coins || 0;
+  const a = Number(amount || 0);
+  if (a > cur) throw new Error("Not enough coins");
+  const next = cur - a;
+  await setStorage({ coins: next });
+  return next;
+}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { getAll, setLimit, removeLimit, blockDomain, unblockDomain, getUsageLast7Days, getStorage, setStorage, getSchedules, addSchedule, removeSchedule, getWhitelist, addWhitelist, removeWhitelist, getCategoriesList, addCategory, removeCategory, assignDomainToCategory, getDomainsForCategory } from '../utils/storage'
+import { getAll, setLimit, removeLimit, blockDomain, unblockDomain, getUsageLast7Days, getStorage, setStorage, getSchedules, addSchedule, removeSchedule, getWhitelist, addWhitelist, removeWhitelist, getCategoriesList, addCategory, removeCategory, assignDomainToCategory, getDomainsForCategory, getCoins, spendCoins } from '../utils/storage'
 import { knownCategories, defaultLimitForCategory, categorizeDomain } from '../utils/categories'
 import '../styles/tailwind.css'
 import { motion } from 'framer-motion'
@@ -225,6 +225,7 @@ export default function Options() {
     const [detailDomain, setDetailDomain] = useState(null)
     const [socialList, setSocialList] = useState([])
     const [socialCatLimit, setSocialCatLimit] = useState('')
+    const [coins, setCoins] = useState(0)
     const [whitelist, setWhitelist] = useState([])
     const [whitelistInput, setWhitelistInput] = useState('')
     const [categoriesCustom, setCategoriesCustom] = useState([])
@@ -245,6 +246,10 @@ export default function Options() {
                 const sys = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)')
                 const isDark = t === 'dark' || (t === 'auto' && sys && sys.matches)
                 document.documentElement.classList.toggle('dark', isDark)
+            } catch (e) { }
+            try {
+                const c = await getCoins()
+                setCoins(c || 0)
             } catch (e) { }
         })()
     }, [])
@@ -407,6 +412,20 @@ export default function Options() {
                             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">SiteFuse</h1>
                             <p className="text-sm text-gray-500 dark:text-gray-400">Manage domains, limits and categories</p>
                         </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="text-sm text-yellow-600 dark:text-yellow-400 font-semibold">⭐ {coins} coins</div>
+                        <button
+                            className="px-3 py-2 rounded-lg bg-amber-500 text-white text-sm hover:bg-amber-600 transition-colors"
+                            onClick={async () => {
+                                try {
+                                    if ((await spendCoins(50)) !== undefined) {
+                                        alert('Theme unlocked! Check the theme picker.');
+                                        const c = await getCoins(); setCoins(c || 0)
+                                    }
+                                } catch (e) { alert('Not enough coins') }
+                            }}
+                        >Unlock Theme (50)</button>
                     </div>
                 </div>
 

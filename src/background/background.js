@@ -130,7 +130,8 @@ async function enforceSchedules() {
 async function evaluateBadges() {
   try {
     const mod = await import("../utils/storage.js");
-    const { getStreaks, getBadges, awardBadge, getStreakCalendar } = mod;
+    const { getStreaks, getBadges, awardBadge, getStreakCalendar, addCoins } =
+      mod;
     const streaks = await getStreaks();
     const badges = await getBadges();
     const toNotify = [];
@@ -142,6 +143,9 @@ async function evaluateBadges() {
         desc: "Installed SiteFuse and started tracking",
       });
       toNotify.push({ id: "first_use", title: "First Steps" });
+      try {
+        await addCoins(10);
+      } catch (e) {}
     }
 
     // Streak-based badges
@@ -151,6 +155,9 @@ async function evaluateBadges() {
         desc: "Stayed under limits for 7 consecutive days",
       });
       toNotify.push({ id: "7_day_streak", title: "7 Day Streak" });
+      try {
+        await addCoins(20);
+      } catch (e) {}
     }
     if ((streaks.current || 0) >= 14 && !badges["14_day_streak"]) {
       await awardBadge("14_day_streak", {
@@ -158,6 +165,9 @@ async function evaluateBadges() {
         desc: "Stayed under limits for 14 consecutive days",
       });
       toNotify.push({ id: "14_day_streak", title: "14 Day Streak" });
+      try {
+        await addCoins(40);
+      } catch (e) {}
     }
     if ((streaks.best || 0) >= 30 && !badges["30_day_best"]) {
       await awardBadge("30_day_best", {
@@ -165,6 +175,9 @@ async function evaluateBadges() {
         desc: "Recorded a 30 day best streak",
       });
       toNotify.push({ id: "30_day_best", title: "30 Day Champion" });
+      try {
+        await addCoins(80);
+      } catch (e) {}
     }
 
     // Consistency: last 7 days all-success
@@ -178,6 +191,9 @@ async function evaluateBadges() {
           desc: "All tracked sites under limit for the last 7 days",
         });
         toNotify.push({ id: "consistent_7", title: "Consistent 7" });
+        try {
+          await addCoins(25);
+        } catch (e) {}
       }
     } catch (e) {
       // ignore calendar errors
@@ -212,7 +228,9 @@ async function autoAdjustLimits() {
       const items = usageHistory[domain] || [];
       // compute daily totals over the last 7 days approximate from timestamps
       // fallback: sum recent entries for a heuristic
-      const totalMinutes = Math.round(items.reduce((s, e) => s + (e.s || 0), 0) / 60);
+      const totalMinutes = Math.round(
+        items.reduce((s, e) => s + (e.s || 0), 0) / 60
+      );
       const current = limits[domain] || 15;
       // if user consistently exceeds limit, nudge down (stricter), else relax slightly
       if (totalMinutes > current * 1.3) {
@@ -230,7 +248,8 @@ async function autoAdjustLimits() {
           type: "basic",
           iconUrl: "/icon128.png",
           title: "Smart Limits Updated",
-          message: "SiteFuse adjusted a few limits based on your recent trends.",
+          message:
+            "SiteFuse adjusted a few limits based on your recent trends.",
         });
       } catch (e) {}
     }
@@ -348,9 +367,10 @@ async function incrementDomainUsage(domain, seconds = 60, tabId = null) {
     const recentActions = {};
     try {
       const meta = await getStorage([`tab_switches_${domain}`, `usageHistory`]);
-      recentActions.visitsLastHour = (meta[`tab_switches_${domain}`] || 0);
+      recentActions.visitsLastHour = meta[`tab_switches_${domain}`] || 0;
       // compute total minutes today for domain
-      const usageHistory = (meta.usageHistory && meta.usageHistory[domain]) || [];
+      const usageHistory =
+        (meta.usageHistory && meta.usageHistory[domain]) || [];
       recentActions.totalTimeTodayMinutes = Math.round(
         usageHistory.reduce((s, e) => s + (e.s || 0), 0) / 60
       );
